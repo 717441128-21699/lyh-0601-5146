@@ -1,0 +1,401 @@
+<template>
+  <div class="page-container">
+    <el-page-header @back="goBack" :content="contest?.title || '竞赛详情'" class="mb-20" />
+
+    <div v-loading="loading" v-if="contest">
+      <el-card class="card-shadow mb-20">
+        <div class="contest-header">
+          <div class="cover">
+            <img v-if="contest.coverImage" :src="contest.coverImage" />
+            <div v-else class="cover-placeholder">
+              <el-icon :size="64"><Trophy /></el-icon>
+            </div>
+          </div>
+          <div class="contest-info">
+            <div class="flex-between">
+              <h2 class="contest-title">{{ contest.title }}</h2>
+              <div class="tags">
+                <el-tag :type="statusType" size="large">{{ statusText }}</el-tag>
+                <el-tag type="info" size="large">{{ typeText }}</el-tag>
+              </div>
+            </div>
+            <p class="contest-desc">{{ contest.description }}</p>
+            <div class="meta-grid">
+              <div class="meta-item">
+                <el-icon><Calendar /></el-icon>
+                <span>报名时间: {{ formatTime(contest.registrationStartTime) }} - {{ formatTime(contest.registrationEndTime) }}</span>
+              </div>
+              <div class="meta-item">
+                <el-icon><Clock /></el-icon>
+                <span>比赛时间: {{ formatTime(contest.startTime) }} - {{ formatTime(contest.endTime) }}</span>
+              </div>
+              <div class="meta-item">
+                <el-icon><User /></el-icon>
+                <span>参赛人数: {{ contest.participantCount || 0 }}人</span>
+              </div>
+              <div class="meta-item">
+                <el-icon><Document /></el-icon>
+                <span>题目数量: {{ contest.problemCount || 0 }}道</span>
+              </div>
+            </div>
+            <div class="action-area">
+              <template v-if="!contest.isRegistered">
+                <el-button
+                  v-if="canRegister"
+                  type="primary"
+                  size="large"
+                  :loading="registerLoading"
+                  @click="handleRegister"
+                >
+                  <el-icon><EditPen /></el-icon>立即报名
+                </el-button>
+                <el-button v-else size="large" disabled>
+                  {{ registrationClosed ? '报名已结束' : '请等待报名开始' }}
+                </el-button>
+              </template>
+              <el-tag v-else type="success" size="large">
+                <el-icon><CircleCheck /></el-icon>已报名
+              </el-tag>
+            </div>
+          </div>
+        </div>
+      </el-card>
+
+      <el-tabs v-model="activeTab" class="contest-tabs">
+        <el-tab-pane label="题目列表" name="problems">
+          <el-card class="card-shadow">
+            <el-table :data="problems" stripe v-loading="problemsLoading">
+              <el-table-column label="序号" width="70" align="center">
+                <template #default="{ $index }">{{ String.fromCharCode(65 + $index) }}</template>
+              </el-table-column>
+              <el-table-column label="题目名称" prop="title" min-width="200">
+                <template #default="{ row }">
+                  <el-link type="primary" @click="goToProblem(row.id)">{{ row.title }}</el-link>
+                </template>
+              </el-table-column>
+              <el-table-column label="难度" width="100" align="center">
+                <template #default="{ row }">
+                  <el-tag :type="getDifficultyType(row.difficulty)">{{ getDifficultyText(row.difficulty) }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="分值" prop="points" width="80" align="center" />
+              <el-table-column label="通过/提交" width="120" align="center">
+                <template #default="{ row }">
+                  <span style="color: #67C23A">{{ row.acceptedCount || 0 }}</span>
+                  <span style="color: #909399"> / </span>
+                  <span>{{ row.submissionCount || 0 }}</span>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-card>
+        </el-tab-pane>
+
+        <el-tab-pane label="实时排名" name="ranking">
+          <div class="ranking-filter mb-20">
+            <el-select v-model="selectedGroup" placeholder="全部组别" clearable style="width: 200px">
+              <el-option
+                v-for="group in contest.groups"
+                :key="group.id"
+                :label="group.name"
+                :value="group.id"
+              />
+            </el-select>
+          </div>
+          <el-card class="card-shadow">
+            <el-table :data="rankings" stripe v-loading="rankingLoading">
+              <el-table-column label="排名" width="80" align="center">
+                <template #default="{ row }">
+                  <span v-if="row.rank <= 3" class="rank-medal">
+                    {{ ['🥇', '🥈', '🥉'][row.rank - 1] }}
+                  </span>
+                  <span v-else>{{ row.rank }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="用户">
+                <template #default="{ row }">
+                  <div class="user-cell">
+                    <el-avatar :size="32">
+                      {{ row.user?.nickname?.charAt(0) || row.user?.username?.charAt(0) }}
+                    </el-avatar>
+                    <span class="username">{{ row.user?.nickname || row.user?.username }}</span>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column label="通过题数" prop="solvedProblems" width="100" align="center" />
+              <el-table-column label="总分" prop="totalScore" width="100" align="center" />
+              <el-table-column label="用时" width="140" align="center">
+                <template #default="{ row }">{{ row.penalty ? formatPenalty(row.penalty) : '-' }}</template>
+              </el-table-column>
+            </el-table>
+          </el-card>
+        </el-tab-pane>
+      </el-tabs>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { getContestDetail, getContestProblems, registerContest } from '@/api/contest'
+import { getContestRanking } from '@/api/ranking'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import type { Contest } from '@/types/contest'
+import type { Problem } from '@/types/problem'
+import type { RankingItem } from '@/types/ranking'
+import dayjs from 'dayjs'
+
+const route = useRoute()
+const router = useRouter()
+
+const loading = ref(false)
+const registerLoading = ref(false)
+const problemsLoading = ref(false)
+const rankingLoading = ref(false)
+const contest = ref<Contest | null>(null)
+const problems = ref<Problem[]>([])
+const rankings = ref<RankingItem[]>([])
+const activeTab = ref('problems')
+const selectedGroup = ref<number | null>(null)
+
+const contestId = computed(() => Number(route.params.id))
+
+const statusText = computed(() => {
+  if (!contest.value) return ''
+  const map: Record<string, string> = { upcoming: '即将开始', ongoing: '进行中', ended: '已结束' }
+  return map[contest.value.status] || '未知'
+})
+
+const statusType = computed(() => {
+  if (!contest.value) return 'info'
+  const map: Record<string, string> = { upcoming: 'warning', ongoing: 'success', ended: 'info' }
+  return map[contest.value.status] || 'info'
+})
+
+const typeText = computed(() => {
+  if (!contest.value) return ''
+  return contest.value.type === 'individual' ? '个人赛' : '团队赛'
+})
+
+const canRegister = computed(() => {
+  if (!contest.value) return false
+  const now = dayjs()
+  return now.isAfter(dayjs(contest.value.registrationStartTime)) &&
+    now.isBefore(dayjs(contest.value.registrationEndTime))
+})
+
+const registrationClosed = computed(() => {
+  if (!contest.value) return true
+  return dayjs().isAfter(dayjs(contest.value.registrationEndTime))
+})
+
+function formatTime(time: string) {
+  return dayjs(time).format('YYYY-MM-DD HH:mm')
+}
+
+function formatPenalty(seconds: number) {
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  const s = seconds % 60
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+}
+
+function getDifficultyType(difficulty: string) {
+  const map: Record<string, string> = { easy: 'success', medium: 'warning', hard: 'danger' }
+  return map[difficulty] || 'info'
+}
+
+function getDifficultyText(difficulty: string) {
+  const map: Record<string, string> = { easy: '简单', medium: '中等', hard: '困难' }
+  return map[difficulty] || '未知'
+}
+
+async function loadContest() {
+  loading.value = true
+  try {
+    contest.value = await getContestDetail(contestId.value)
+  } finally {
+    loading.value = false
+  }
+}
+
+async function loadProblems() {
+  problemsLoading.value = true
+  try {
+    const res = await getContestProblems(contestId.value)
+    problems.value = Array.isArray(res) ? res : res.list || []
+  } finally {
+    problemsLoading.value = false
+  }
+}
+
+async function loadRankings() {
+  rankingLoading.value = true
+  try {
+    const res = await getContestRanking(contestId.value, {
+      groupId: selectedGroup.value || undefined,
+      pageSize: 100
+    })
+    rankings.value = res.list || []
+  } finally {
+    rankingLoading.value = false
+  }
+}
+
+async function handleRegister() {
+  if (!contest.value) return
+  try {
+    if (contest.value.groups.length > 0) {
+      const groupOptions = contest.value.groups.map(g => `<option value="${g.id}">${g.name}</option>`).join('')
+      const { value } = await ElMessageBox({
+        title: '选择参赛组别',
+        message: `请选择您要参加的组别：<select id="group-select" style="width:100%;padding:8px;margin-top:12px;border:1px solid #dcdfe6;border-radius:4px;">${groupOptions}</select>`,
+        dangerouslyUseHTMLString: true,
+        confirmButtonText: '确认报名',
+        cancelButtonText: '取消'
+      })
+      const select = document.getElementById('group-select') as HTMLSelectElement
+      const groupId = select ? Number(select.value) : undefined
+      await doRegister(groupId)
+    } else {
+      await doRegister()
+    }
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(error?.message || '报名失败')
+    }
+  }
+}
+
+async function doRegister(groupId?: number) {
+  registerLoading.value = true
+  try {
+    await registerContest(contestId.value, groupId)
+    ElMessage.success('报名成功！')
+    if (contest.value) {
+      contest.value.isRegistered = true
+    }
+  } finally {
+    registerLoading.value = false
+  }
+}
+
+function goBack() {
+  router.back()
+}
+
+function goToProblem(problemId: number) {
+  router.push(`/problems/${problemId}?contestId=${contestId.value}`)
+}
+
+onMounted(() => {
+  loadContest()
+  loadProblems()
+  loadRankings()
+})
+</script>
+
+<style lang="scss" scoped>
+.contest-header {
+  display: flex;
+  gap: 24px;
+
+  .cover {
+    width: 240px;
+    height: 160px;
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .cover-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(255, 255, 255, 0.8);
+    }
+  }
+
+  .contest-info {
+    flex: 1;
+    min-width: 0;
+
+    .contest-title {
+      font-size: 24px;
+      font-weight: 600;
+      color: #303133;
+      margin: 0;
+    }
+
+    .tags {
+      display: flex;
+      gap: 8px;
+    }
+
+    .contest-desc {
+      font-size: 14px;
+      color: #606266;
+      line-height: 1.6;
+      margin: 12px 0 20px;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+
+      .meta-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: #606266;
+      }
+    }
+  }
+}
+
+.contest-tabs {
+  :deep(.el-tabs__header) {
+    margin: 0 0 20px;
+  }
+}
+
+.user-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  .username {
+    font-size: 14px;
+    color: #303133;
+  }
+}
+
+.rank-medal {
+  font-size: 18px;
+}
+
+@media (max-width: 768px) {
+  .contest-header {
+    flex-direction: column;
+
+    .cover {
+      width: 100%;
+    }
+  }
+
+  .meta-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+</style>

@@ -7,6 +7,8 @@ import { ContestGroup } from '../contests/entities/contest-group.entity';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { ContestsService } from '../contests/contests.service';
 import { UsersService } from '../users/users.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../notifications/entities/notification.entity';
 
 function generateTicketNumber(contestId: number, userId: number): string {
   const timestamp = Date.now().toString(36).toUpperCase();
@@ -21,14 +23,15 @@ export class RegistrationsService {
     private registrationsRepository: Repository<Registration>,
     private contestsService: ContestsService,
     private usersService: UsersService,
+    private notificationsService: NotificationsService,
     private dataSource: DataSource,
   ) {}
 
-  async create(contestId: number, userId: number): Promise<Registration> {
+  async create(contestId: number, userId: number): Promise<any> {
     const contest = await this.contestsService.findOne(contestId);
     const user = await this.usersService.findOne(userId);
 
-    if (contest.status !== ContestStatus.REGISTRATION) {
+    if (contest.status !== ContestStatus.REGISTERING) {
       throw new BadRequestException('当前竞赛不处于报名阶段');
     }
 
@@ -54,12 +57,8 @@ export class RegistrationsService {
     try {
       let assignedGroup: ContestGroup | null = null;
 
-      if (contest.autoAssignTrack) {
-        assignedGroup = await this.contestsService.findSuitableGroup(contestId, user.rating);
-        if (!assignedGroup) {
-          throw new BadRequestException('所有赛道均已满员，报名失败');
-        }
-      } else {
+      assignedGroup = await this.contestsService.findSuitableGroup(contestId, user.rating);
+      if (!assignedGroup) {
         const groups = await this.contestsService.getContestGroups(contestId);
         if (groups.length > 0) {
           for (const group of groups) {
@@ -92,7 +91,24 @@ export class RegistrationsService {
       await this.usersService.incrementContestCount(userId);
 
       await queryRunner.commitTransaction();
-      return this.findOne(savedRegistration.id);
+
+      const result = await this.findOne(savedRegistration.id);
+
+      await this.notificationsService.create({
+        userId,
+        type: NotificationType.REGISTRATION,
+        title: '报名成功',
+        content: `您已成功报名竞赛「${contest.title}」，参赛凭证：${savedRegistration.ticketNumber}`,
+        relatedId: contestId,
+        link: `/contests/${contestId}`,
+      });
+
+      return {
+        ...result,
+        group: assignedGroup,
+        credentialCode: savedRegistration.ticketNumber,
+        trackName: assignedGroup?.name || null,
+      };
     } catch (error) {
       await queryRunner.rollbackTransaction();
       throw error;
@@ -111,6 +127,7 @@ export class RegistrationsService {
     const skip = (page - 1) * pageSize;
 
     const queryBuilder = this.registrationsRepository.createQueryBuilder('registration');
+    queryBuilder.leftJoinAndSelect('registration.group', 'group');
 
     if (filters?.contestId) {
       queryBuilder.andWhere('registration.contestId = :contestId', { contestId: filters.contestId });
@@ -134,7 +151,10 @@ export class RegistrationsService {
   }
 
   async findOne(id: number): Promise<Registration> {
-    const registration = await this.registrationsRepository.findOne({ where: { id } });
+    const registration = await this.registrationsRepository.findOne({
+      where: { id },
+      relations: ['group'],
+    });
     if (!registration) {
       throw new NotFoundException(`报名记录ID ${id} 不存在`);
     }
@@ -142,7 +162,10 @@ export class RegistrationsService {
   }
 
   async findByContestAndUser(contestId: number, userId: number): Promise<Registration | null> {
-    return this.registrationsRepository.findOne({ where: { contestId, userId } });
+    return this.registrationsRepository.findOne({
+      where: { contestId, userId },
+      relations: ['group'],
+    });
   }
 
   async findByUser(userId: number, paginationDto: PaginationDto) {
@@ -207,6 +230,7 @@ export class RegistrationsService {
         solvedCount: 'DESC',
         totalTime: 'ASC',
       },
+      relations: ['group'],
     });
 
     return { items, total, page, pageSize };
@@ -225,14 +249,16 @@ export class RegistrationsService {
         solvedCount: 'DESC',
         totalTime: 'ASC',
       },
+      relations: ['group'],
     });
 
     return { items, total, page, pageSize };
   }
 
-  async isUserRegistered(contestId: number, userId: number): Promise<boolean> {
+  async isUserRegistered(contestId: number, userId: number): Promise<{ isRegistered: boolean; registration?: Registration }> {
     const registration = await this.findByContestAndUser(contestId, userId);
-    return registration !== null && registration.status !== RegistrationStatus.CANCELLED;
+    const isRegistered = registration !== null && registration.status !== RegistrationStatus.CANCELLED;
+    return { isRegistered, registration: isRegistered ? registration : undefined };
   }
 
   async getRegistrationStats(contestId: number) {

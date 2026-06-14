@@ -41,9 +41,23 @@ export function deleteContest(id: number) {
 
 export function registerContest(contestId: number, groupId?: number) {
   return request<Registration>({
-    url: `/contests/${contestId}/register`,
+    url: `/registrations/contest/${contestId}`,
     method: 'post',
     data: { groupId }
+  })
+}
+
+export function checkRegistration(contestId: number) {
+  return request<{ isRegistered: boolean; registration: Registration | null }>({
+    url: `/registrations/contest/${contestId}/check`,
+    method: 'get'
+  })
+}
+
+export function getRegistrationStatus(contestId: number) {
+  return request({
+    url: `/contests/${contestId}/registration-status`,
+    method: 'get'
   })
 }
 

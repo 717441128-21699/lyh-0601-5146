@@ -1,74 +1,40 @@
-import type { User } from './user'
-
-export enum ContestStatus {
-  UPCOMING = 'upcoming',
-  ONGOING = 'ongoing',
-  ENDED = 'ended'
-}
-
-export enum ContestType {
-  INDIVIDUAL = 'individual',
-  TEAM = 'team'
-}
+export type ContestStatus = 'draft' | 'registering' | 'ongoing' | 'ended' | 'cancelled'
+export type ContestType = 'individual' | 'team'
+export type ContestDifficulty = 'easy' | 'medium' | 'hard' | 'expert'
 
 export interface ContestGroup {
   id: number
+  contestId: number
   name: string
   description?: string
-  contestId: number
-  minScore?: number
-  maxScore?: number
-  createdAt: string
-  updatedAt: string
+  capacity: number
+  currentCount: number
+  minRating?: number
+  maxRating?: number
 }
 
 export interface Contest {
   id: number
   title: string
   description: string
-  coverImage?: string
-  type: ContestType
   status: ContestStatus
-  startTime: string
-  endTime: string
+  type: ContestType
+  difficulty: ContestDifficulty
+  organizer: string
+  coverImage?: string
   registrationStartTime: string
   registrationEndTime: string
+  startTime: string
+  endTime: string
   maxParticipants?: number
-  groups: ContestGroup[]
-  problemCount?: number
-  participantCount?: number
-  isRegistered?: boolean
+  antiCheatThreshold: number
+  checkPointCount: number
   createdBy: number
-  creator?: User
   createdAt: string
   updatedAt: string
-}
-
-export interface CreateContestDto {
-  title: string
-  description: string
-  coverImage?: string
-  type: ContestType
-  startTime: string
-  endTime: string
-  registrationStartTime: string
-  registrationEndTime: string
-  maxParticipants?: number
-  groups?: { name: string; description?: string }[]
-}
-
-export interface UpdateContestDto {
-  title?: string
-  description?: string
-  coverImage?: string
-  type?: ContestType
-  status?: ContestStatus
-  startTime?: string
-  endTime?: string
-  registrationStartTime?: string
-  registrationEndTime?: string
-  maxParticipants?: number
-  groups?: { id?: number; name: string; description?: string }[]
+  groups: ContestGroup[]
+  isRegistered?: boolean
+  registrationInfo?: Registration
 }
 
 export interface Registration {
@@ -76,8 +42,47 @@ export interface Registration {
   userId: number
   contestId: number
   groupId?: number
-  status: 'pending' | 'approved' | 'rejected'
+  ticketNumber?: string
+  credentialCode?: string
+  trackName?: string
+  status: string
+  finalScore?: number
+  finalRank?: number
   registeredAt: string
-  user?: User
-  contest?: Contest
+  group?: ContestGroup
+}
+
+export interface CreateContestDto {
+  title: string
+  description: string
+  type: ContestType
+  difficulty: ContestDifficulty
+  organizer: string
+  registrationStartTime: string
+  registrationEndTime: string
+  startTime: string
+  endTime: string
+  maxParticipants?: number
+  antiCheatThreshold: number
+  checkPointCount: number
+  groups: { name: string; description?: string; capacity: number; minRating?: number; maxRating?: number }[]
+  coverImage?: string
+}
+
+export interface UpdateContestDto {
+  title?: string
+  description?: string
+  type?: ContestType
+  difficulty?: ContestDifficulty
+  organizer?: string
+  status?: ContestStatus
+  registrationStartTime?: string
+  registrationEndTime?: string
+  startTime?: string
+  endTime?: string
+  maxParticipants?: number
+  antiCheatThreshold?: number
+  checkPointCount?: number
+  groups?: { id?: number; name: string; description?: string; capacity: number; minRating?: number; maxRating?: number }[]
+  coverImage?: string
 }

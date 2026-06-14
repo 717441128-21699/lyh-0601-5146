@@ -1,4 +1,4 @@
-import request from '@/utils/request'
+import request, { type PageParams, type PageResult } from '@/utils/request'
 
 export interface OperationReport {
   id: number
@@ -23,6 +23,11 @@ export interface DashboardStats {
   submissionsToday: number
   ongoingContests: number
   pendingJudgements: number
+  antiCheatAlertsThisMonth: number
+  registeredContests: number
+  totalScore: number
+  acceptedProblems: number
+  rating: number
 }
 
 export function getDashboardStats() {
@@ -32,10 +37,24 @@ export function getDashboardStats() {
   })
 }
 
+export function getMonthlyReports(params?: { date?: string; contestId?: number; page?: number; pageSize?: number }) {
+  return request<PageResult<OperationReport>>({
+    url: '/reports/monthly',
+    method: 'get',
+    params
+  })
+}
+
 export function getMonthlyReport(year: number, month: number) {
-  return request<OperationReport>({
-    url: `/reports/monthly/${year}/${month}`,
-    method: 'get'
+  const date = `${year}-${String(month).padStart(2, '0')}`
+  return getMonthlyReports({ date })
+}
+
+export function generateReport(date: string) {
+  return request({
+    url: '/reports/generate',
+    method: 'post',
+    data: { date }
   })
 }
 
@@ -45,10 +64,7 @@ export function getReportList(params?: {
   page?: number
   pageSize?: number
 }) {
-  return request<{
-    list: OperationReport[]
-    total: number
-  }>({
+  return request<PageResult<OperationReport>>({
     url: '/reports',
     method: 'get',
     params
@@ -110,12 +126,16 @@ export interface AntiCheatRecord {
   evidence?: string
   reviewedBy?: number
   reviewedAt?: string
-  note?: string
+  reviewNote?: string
   submittedAt: string
+  contest?: {
+    id: number
+    title: string
+  }
   user?: {
     id: number
     username: string
-    nickname: string
+    realName: string
   }
   submission?: {
     id: number
@@ -130,24 +150,34 @@ export function getAntiCheatRecords(params?: {
   page?: number
   pageSize?: number
 }) {
-  return request<{
-    list: AntiCheatRecord[]
-    total: number
-  }>({
-    url: '/anti-cheat',
+  return request<PageResult<AntiCheatRecord>>({
+    url: '/anti-cheat/records',
     method: 'get',
     params
   })
 }
 
-export function reviewAntiCheat(id: number, data: {
+export function reviewRecord(id: number, data: {
   status: 'confirmed' | 'dismissed'
-  note?: string
+  reviewNote?: string
 }) {
   return request<AntiCheatRecord>({
-    url: `/anti-cheat/${id}/review`,
+    url: `/anti-cheat/records/${id}/review`,
     method: 'post',
     data
+  })
+}
+
+export function getAntiCheatStats() {
+  return request<{
+    totalRecords: number
+    pending: number
+    confirmed: number
+    dismissed: number
+    thisMonth: number
+  }>({
+    url: '/anti-cheat/stats',
+    method: 'get'
   })
 }
 

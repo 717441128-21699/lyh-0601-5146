@@ -54,9 +54,9 @@
           <el-dropdown trigger="click" @command="handleUserCommand">
             <div class="user-info">
               <el-avatar :size="32" :src="userStore.userInfo?.avatar">
-                {{ userStore.userInfo?.nickname?.charAt(0) || userStore.userInfo?.username?.charAt(0) }}
+                {{ userStore.userInfo?.realName?.charAt(0) || userStore.userInfo?.username?.charAt(0) }}
               </el-avatar>
-              <span class="username">{{ userStore.userInfo?.nickname || userStore.userInfo?.username }}</span>
+              <span class="username">{{ userStore.userInfo?.realName || userStore.userInfo?.username }}</span>
               <el-icon><ArrowDown /></el-icon>
             </div>
             <template #dropdown>
@@ -89,7 +89,6 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { getUnreadCount } from '@/api/notification'
-import { UserRole } from '@/types/user'
 import { ElMessageBox } from 'element-plus'
 
 const userStore = useUserStore()

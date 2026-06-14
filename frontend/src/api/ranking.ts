@@ -11,9 +11,16 @@ export function getRankingList(params?: PageParams & { contestId?: number; group
 
 export function getContestRanking(contestId: number, params?: PageParams & { groupId?: number }) {
   return request<PageResult<RankingItem>>({
-    url: `/contests/${contestId}/rankings`,
+    url: `/registrations/contest/${contestId}/rankings`,
     method: 'get',
     params
+  })
+}
+
+export function refreshRanking(contestId: number) {
+  return request({
+    url: `/contests/${contestId}/rankings/refresh`,
+    method: 'post'
   })
 }
 

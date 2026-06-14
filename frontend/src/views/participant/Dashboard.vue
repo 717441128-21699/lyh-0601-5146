@@ -3,7 +3,7 @@
     <div class="welcome-section card-shadow">
       <div class="welcome-content">
         <div>
-          <h2 class="welcome-title">欢迎回来，{{ userStore.userInfo?.nickname || userStore.userInfo?.username }} 👋</h2>
+          <h2 class="welcome-title">欢迎回来，{{ userStore.userInfo?.realName || userStore.userInfo?.username }} 👋</h2>
           <p class="welcome-desc">祝你在接下来的比赛中取得好成绩！</p>
         </div>
         <el-button type="primary" size="large" @click="goToContests">
@@ -15,7 +15,7 @@
     <el-row :gutter="20" class="mt-20">
       <el-col :xs="12" :sm="12" :md="6">
         <StatCard
-          title="我的竞赛"
+          title="已报名竞赛"
           :value="stats.registeredContests"
           icon="Trophy"
           color="#409EFF"
@@ -24,16 +24,16 @@
       </el-col>
       <el-col :xs="12" :sm="12" :md="6">
         <StatCard
-          title="提交次数"
-          :value="stats.totalSubmissions"
-          icon="Document"
+          title="累计得分"
+          :value="stats.totalScore"
+          icon="Star"
           color="#67C23A"
           icon-bg="rgba(103, 194, 58, 0.1)"
         />
       </el-col>
       <el-col :xs="12" :sm="12" :md="6">
         <StatCard
-          title="通过题目"
+          title="AC题数"
           :value="stats.acceptedProblems"
           icon="CircleCheck"
           color="#E6A23C"
@@ -42,11 +42,12 @@
       </el-col>
       <el-col :xs="12" :sm="12" :md="6">
         <StatCard
-          title="获得证书"
-          :value="stats.certificates"
-          icon="Award"
+          title="Rating等级"
+          :value="ratingLevel"
+          icon="Medal"
           color="#F56C6C"
           icon-bg="rgba(245, 108, 108, 0.1)"
+          :sub-label="`当前Rating: ${stats.rating}`"
         />
       </el-col>
     </el-row>
@@ -126,9 +127,9 @@
                 <el-tag :type="getStatusTagType(row.status)" size="small">{{ getSubmissionStatus(row.status) }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="得分" prop="score" width="100" align="center">
+            <el-table-column label="得分" width="100" align="center">
               <template #default="{ row }">
-                <span v-if="row.score !== undefined">{{ row.score }}/{{ row.maxScore }}</span>
+                <span v-if="row.score !== undefined">{{ row.score }}分</span>
                 <span v-else>-</span>
               </template>
             </el-table-column>
@@ -143,13 +144,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { getMyRegistrations } from '@/api/contest'
 import { getMySubmissions } from '@/api/submission'
 import { getMyNotifications, readNotification as readNotifApi } from '@/api/notification'
-import { getMyCertificates } from '@/api/certificate'
+import { getMyCertificates, getDashboardStats } from '@/api/report'
 import StatCard from '@/components/StatCard.vue'
 import type { Contest, ContestStatus } from '@/types/contest'
 import type { Submission, SubmissionStatus } from '@/types/submission'
@@ -167,9 +168,21 @@ const router = useRouter()
 
 const stats = ref({
   registeredContests: 0,
-  totalSubmissions: 0,
+  totalScore: 0,
   acceptedProblems: 0,
+  rating: 0,
   certificates: 0
+})
+
+const ratingLevel = computed(() => {
+  const r = stats.value.rating
+  if (r >= 2400) return 'Legendary'
+  if (r >= 2100) return 'Grand Master'
+  if (r >= 1900) return 'Master'
+  if (r >= 1600) return 'Expert'
+  if (r >= 1400) return 'Specialist'
+  if (r >= 1200) return 'Pupil'
+  return 'Newbie'
 })
 
 const myContests = ref<any[]>([])
@@ -178,37 +191,45 @@ const recentSubmissions = ref<Submission[]>([])
 
 async function loadData() {
   try {
-    const [registrations, submissions, notifs, certs] = await Promise.all([
+    const [registrations, submissions, notifs, certs, dashboard] = await Promise.all([
       getMyRegistrations({ pageSize: 5 }),
       getMySubmissions({ pageSize: 5 }),
       getMyNotifications({ pageSize: 5 }),
-      getMyCertificates({ pageSize: 100 })
+      getMyCertificates({ pageSize: 100 }),
+      getDashboardStats()
     ])
     myContests.value = registrations.list?.map(r => r.contest)?.filter(Boolean) || []
     recentSubmissions.value = submissions.list || []
     notifications.value = notifs.list || []
     stats.value.registeredContests = registrations.total || 0
-    stats.value.totalSubmissions = submissions.total || 0
     stats.value.acceptedProblems = submissions.list?.filter(s => s.status === 'accepted').length || 0
     stats.value.certificates = certs.total || 0
+    stats.value.totalScore = dashboard.totalScore || userStore.userInfo?.totalScore || 0
+    stats.value.rating = dashboard.rating || userStore.userInfo?.rating || 0
   } catch (error) {
+    stats.value.rating = userStore.userInfo?.rating || 0
+    stats.value.totalScore = userStore.userInfo?.totalScore || 0
   }
 }
 
 function getStatusType(status: string) {
   const map: Record<string, string> = {
-    upcoming: 'warning',
+    draft: 'info',
+    registering: 'warning',
     ongoing: 'success',
-    ended: 'info'
+    ended: 'info',
+    cancelled: 'danger'
   }
   return map[status] || 'info'
 }
 
 function getStatusText(status: string) {
   const map: Record<string, string> = {
-    upcoming: '即将开始',
+    draft: '草稿',
+    registering: '报名中',
     ongoing: '进行中',
-    ended: '已结束'
+    ended: '已结束',
+    cancelled: '已取消'
   }
   return map[status] || '未知'
 }
@@ -219,11 +240,11 @@ function getStatusTagType(status: string) {
     wrong_answer: 'danger',
     time_limit_exceeded: 'warning',
     runtime_error: 'danger',
-    compilation_error: 'info',
+    compile_error: 'info',
     pending: 'warning',
     judging: 'primary',
-    partial: 'warning',
-    pending_judge: 'warning'
+    memory_limit_exceeded: 'warning',
+    cheating: 'danger'
   }
   return map[status] || 'info'
 }
@@ -237,10 +258,8 @@ function getSubmissionStatus(status: string) {
     time_limit_exceeded: '超时',
     memory_limit_exceeded: '内存超限',
     runtime_error: '运行时错误',
-    compilation_error: '编译错误',
-    system_error: '系统错误',
-    partially_accepted: '部分通过',
-    pending_judge: '等待评委评分'
+    compile_error: '编译错误',
+    cheating: '作弊嫌疑'
   }
   return map[status] || status
 }

@@ -199,4 +199,30 @@ export class ReportsService {
       todaySubmissions,
     };
   }
+
+  async getMonthlyReport(year?: number, month?: number) {
+    const now = new Date();
+    const targetYear = year ?? now.getFullYear();
+    const targetMonth = month ?? (now.getMonth() === 0 ? 12 : now.getMonth());
+
+    const realYear = targetMonth === 12 ? targetYear - 1 : targetYear;
+    const realMonthIndex = targetMonth === 12 ? 11 : targetMonth - 1;
+
+    const periodStart = new Date(realYear, realMonthIndex, 1);
+    const periodEnd = new Date(realYear, realMonthIndex + 1, 0, 23, 59, 59, 999);
+
+    const existing = await this.reportsRepository.findOne({
+      where: {
+        period: ReportPeriod.MONTHLY,
+        periodStart: periodStart as any,
+        periodEnd: periodEnd as any,
+      },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    return this.generateReport(ReportPeriod.MONTHLY, periodStart, periodEnd, false);
+  }
 }

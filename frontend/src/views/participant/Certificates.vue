@@ -4,97 +4,97 @@
       <h2 class="page-title">我的证书</h2>
     </div>
 
-    <el-empty v-if="!loading && certificates.length === 0" description="暂无证书" />
-
-    <el-row v-else :gutter="20">
-      <el-col v-for="cert in certificates" :key="cert.id" :xs="24" :sm="12" :md="8">
-        <el-card class="cert-card card-shadow" :body-style="{ padding: 0 }">
-          <div class="cert-cover" :class="cert.type">
-            <el-icon :size="64" class="cert-icon"><Award /></el-icon>
-            <el-tag :type="getTypeTagType(cert.type)" size="large" class="cert-type-tag">
-              {{ getTypeText(cert.type) }}
-            </el-tag>
+    <el-row :gutter="20" v-loading="loading">
+      <el-col :xs="24" :sm="12" :md="8" :lg="6" v-for="cert in certificates" :key="cert.id">
+        <el-card class="cert-card card-shadow" shadow="hover">
+          <div class="cert-cover" :style="getCoverStyle(cert)">
+            <div class="cert-badge">
+              <el-icon><Medal /></el-icon>
+            </div>
+            <div class="cert-type">{{ getCertTypeName(cert.type) }}</div>
           </div>
-          <div class="cert-body">
-            <h3 class="cert-title">{{ cert.title }}</h3>
-            <p class="cert-contest">{{ cert.contest?.title }}</p>
+          <div class="cert-info">
+            <h3 class="cert-title">{{ cert.title || (cert.contest?.title + ' 证书') }}</h3>
             <div class="cert-meta">
-              <div v-if="cert.rank" class="meta-item">
-                <el-icon><Medal /></el-icon>
-                <span>第 {{ cert.rank }} 名</span>
-              </div>
-              <div v-if="cert.score !== undefined" class="meta-item">
-                <el-icon><Trophy /></el-icon>
-                <span>{{ cert.score }} 分</span>
-              </div>
+              <span class="contest-name">{{ cert.contest?.title || '-' }}</span>
+            </div>
+            <div class="cert-detail" v-if="cert.rank">
+              最终排名: 第 <strong>{{ cert.rank }}</strong> 名
+            </div>
+            <div class="cert-detail" v-if="cert.score">
+              最终得分: <strong>{{ cert.score }}</strong> 分
             </div>
             <div class="cert-footer">
-              <span class="issue-date">{{ formatDate(cert.issuedAt) }} 颁发</span>
-              <el-button type="primary" size="small" @click="handleDownload(cert.id)">
-                <el-icon><Download /></el-icon>下载
-              </el-button>
+              <span class="issue-date">颁发日期: {{ formatTime(cert.issuedAt || cert.createdAt) }}</span>
             </div>
+          </div>
+          <div class="cert-actions">
+            <el-button type="primary" @click="handleDownload(cert.id)">
+              <el-icon><Download /></el-icon>下载
+            </el-button>
           </div>
         </el-card>
       </el-col>
     </el-row>
 
-    <div class="pagination-wrap mt-20" v-if="total > 0">
-      <el-pagination
-        v-model:current-page="page"
-        v-model:page-size="pageSize"
-        :page-sizes="[8, 16, 24, 48]"
-        :total="total"
-        layout="total, sizes, prev, pager, next, jumper"
-        background
-        @size-change="loadCertificates"
-        @current-change="loadCertificates"
-      />
-    </div>
+    <el-empty v-if="!loading && certificates.length === 0" description="暂无证书，快去参加比赛获取证书吧！" />
+
+    <el-pagination
+      v-if="total > 0"
+      class="mt-20"
+      background
+      layout="total, prev, pager, next"
+      :total="total"
+      :page-size="pageSize"
+      :current-page="page"
+      @current-change="handlePageChange"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { getMyCertificates, downloadCertificate, type Certificate } from '@/api/certificate'
+import { getMyCertificates, downloadCertificate } from '@/api/certificate'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 
 const loading = ref(false)
-const certificates = ref<Certificate[]>([])
-const total = ref(0)
 const page = ref(1)
 const pageSize = ref(12)
+const total = ref(0)
+const certificates = ref<any[]>([])
 
-function formatDate(time: string) {
-  return dayjs(time).format('YYYY年MM月DD日')
+function formatTime(time: string) {
+  return time ? dayjs(time).format('YYYY-MM-DD') : '-'
 }
 
-function getTypeText(type: string) {
+function getCertTypeName(type: string) {
   const map: Record<string, string> = {
-    winner: '获奖证书',
-    participant: '参赛证书',
-    achievement: '成就证书'
+    participation: '参与证书',
+    excellence: '优秀奖',
+    third_place: '季军',
+    second_place: '亚军',
+    first_place: '冠军'
   }
-  return map[type] || '证书'
+  return map[type] || '荣誉证书'
 }
 
-function getTypeTagType(type: string) {
-  const map: Record<string, string> = {
-    winner: 'success',
-    participant: '',
-    achievement: 'warning'
+function getCoverStyle(cert: any) {
+  const colorMap: Record<string, string> = {
+    first_place: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
+    second_place: 'linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%)',
+    third_place: 'linear-gradient(135deg, #CD7F32 0%, #8B4513 100%)',
+    excellence: 'linear-gradient(135deg, #67C23A 0%, #4CAF50 100%)',
+    participation: 'linear-gradient(135deg, #409EFF 0%, #667eea 100%)'
   }
-  return map[type] || 'info'
+  const bg = colorMap[cert.type] || colorMap.participation
+  return { background: bg }
 }
 
-async function loadCertificates() {
+async function loadData() {
   loading.value = true
   try {
-    const res = await getMyCertificates({
-      page: page.value,
-      pageSize: pageSize.value
-    })
+    const res = await getMyCertificates({ page: page.value, pageSize: pageSize.value })
     certificates.value = res.list || []
     total.value = res.total || 0
   } finally {
@@ -104,28 +104,31 @@ async function loadCertificates() {
 
 async function handleDownload(id: number) {
   try {
-    const blob = await downloadCertificate(id) as any
-    const url = window.URL.createObjectURL(new Blob([blob]))
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', `certificate_${id}.pdf`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
-    ElMessage.success('下载成功')
+    const data = await downloadCertificate(id)
+    const url = typeof data === 'string' ? data : data?.url
+    if (url) {
+      window.open(url, '_blank')
+    } else {
+      ElMessage.success('证书下载已开始')
+    }
   } catch (error: any) {
     ElMessage.error(error?.message || '下载失败')
   }
 }
 
+function handlePageChange(p: number) {
+  page.value = p
+  loadData()
+}
+
 onMounted(() => {
-  loadCertificates()
+  loadData()
 })
 </script>
 
 <style lang="scss" scoped>
 .cert-card {
+  margin-bottom: 20px;
   overflow: hidden;
   transition: transform 0.2s;
 
@@ -133,86 +136,85 @@ onMounted(() => {
     transform: translateY(-4px);
   }
 
-  .cert-cover {
-    height: 180px;
+  :deep(.el-card__body) {
+    padding: 0;
+  }
+}
+
+.cert-cover {
+  height: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  position: relative;
+
+  .cert-badge {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.25);
     display: flex;
     align-items: center;
     justify-content: center;
-    position: relative;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    font-size: 32px;
+    margin-bottom: 12px;
+  }
 
-    &.winner {
-      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    }
+  .cert-type {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 2px;
+  }
+}
 
-    &.achievement {
-      background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
-    }
+.cert-info {
+  padding: 16px;
 
-    .cert-icon {
-      color: rgba(255, 255, 255, 0.95);
-    }
+  .cert-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #303133;
+    margin: 0 0 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
-    .cert-type-tag {
-      position: absolute;
-      top: 12px;
-      right: 12px;
+  .cert-meta {
+    .contest-name {
+      font-size: 13px;
+      color: #606266;
     }
   }
 
-  .cert-body {
-    padding: 16px;
+  .cert-detail {
+    font-size: 13px;
+    color: #909399;
+    margin-top: 4px;
 
-    .cert-title {
-      font-size: 18px;
-      font-weight: 600;
-      color: #303133;
-      margin: 0 0 8px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+    strong {
+      color: #E6A23C;
+      font-size: 14px;
     }
+  }
 
-    .cert-contest {
-      font-size: 13px;
-      color: #606266;
-      margin: 0 0 12px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
+  .cert-footer {
+    margin-top: 12px;
 
-    .cert-meta {
-      display: flex;
-      gap: 20px;
-      margin-bottom: 16px;
-
-      .meta-item {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        font-size: 13px;
-        color: #606266;
-      }
-    }
-
-    .cert-footer {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding-top: 12px;
-      border-top: 1px solid #ebeef5;
-
-      .issue-date {
-        font-size: 12px;
-        color: #909399;
-      }
+    .issue-date {
+      font-size: 12px;
+      color: #c0c4cc;
     }
   }
 }
 
-.pagination-wrap {
-  display: flex;
-  justify-content: center;
+.cert-actions {
+  padding: 0 16px 16px;
+
+  .el-button {
+    width: 100%;
+  }
 }
 </style>

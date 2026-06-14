@@ -9,6 +9,8 @@ import { JudgeModule } from '../judge/judge.module';
 import { AntiCheatModule } from '../anti-cheat/anti-cheat.module';
 import { RegistrationsModule } from '../registrations/registrations.module';
 import { ContestsModule } from '../contests/contests.module';
+import { RankingsModule } from '../rankings/rankings.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -19,6 +21,8 @@ import { ContestsModule } from '../contests/contests.module';
     forwardRef(() => AntiCheatModule),
     RegistrationsModule,
     ContestsModule,
+    RankingsModule,
+    NotificationsModule,
   ],
   controllers: [SubmissionsController],
   providers: [SubmissionsService],

@@ -2,9 +2,9 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateCol
 import { ApiProperty } from '@nestjs/swagger';
 
 export enum UserRole {
+  PARTICIPANT = 'participant',
   ADMIN = 'admin',
   JUDGE = 'judge',
-  USER = 'user',
 }
 
 @Entity('users')
@@ -14,65 +14,66 @@ export class User {
   id: number;
 
   @ApiProperty({ description: '用户名' })
-  @Column({ unique: true, length: 50 })
+  @Column({ name: 'username', unique: true, length: 50 })
   username: string;
 
   @ApiProperty({ description: '邮箱' })
-  @Column({ unique: true, length: 100 })
+  @Column({ name: 'email', unique: true, length: 100 })
   email: string;
 
-  @Column({ length: 255 })
+  @Column({ name: 'password', length: 255 })
   password: string;
 
   @ApiProperty({ description: '昵称' })
-  @Column({ length: 50, nullable: true })
+  @Column({ name: 'nickname', length: 50, nullable: true })
   nickname: string;
 
   @ApiProperty({ description: '头像' })
-  @Column({ length: 255, nullable: true })
+  @Column({ name: 'avatar', length: 255, nullable: true })
   avatar: string;
 
   @ApiProperty({ description: '用户角色', enum: UserRole })
   @Column({
+    name: 'role',
     type: 'enum',
     enum: UserRole,
-    default: UserRole.USER,
+    default: UserRole.PARTICIPANT,
   })
   role: UserRole;
 
   @ApiProperty({ description: '用户rating积分' })
-  @Column({ type: 'int', default: 1500 })
+  @Column({ name: 'rating', type: 'int', default: 1500 })
   rating: number;
 
   @ApiProperty({ description: '参赛次数' })
-  @Column({ type: 'int', default: 0 })
+  @Column({ name: 'contest_count', type: 'int', default: 0 })
   contestCount: number;
 
   @ApiProperty({ description: 'AC题目数' })
-  @Column({ type: 'int', default: 0 })
+  @Column({ name: 'solved_count', type: 'int', default: 0 })
   solvedCount: number;
 
   @ApiProperty({ description: '提交总数' })
-  @Column({ type: 'int', default: 0 })
+  @Column({ name: 'total_submissions', type: 'int', default: 0 })
   submissionCount: number;
 
   @ApiProperty({ description: '学校/组织' })
-  @Column({ length: 100, nullable: true })
+  @Column({ name: 'organization', length: 100, nullable: true })
   organization: string;
 
   @ApiProperty({ description: '个人简介' })
-  @Column({ type: 'text', nullable: true })
+  @Column({ name: 'bio', type: 'text', nullable: true })
   bio: string;
 
   @ApiProperty({ description: '是否禁用' })
-  @Column({ type: 'boolean', default: false })
+  @Column({ name: 'is_banned', type: 'boolean', default: false })
   isBanned: boolean;
 
   @ApiProperty({ description: '创建时间' })
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
   @ApiProperty({ description: '更新时间' })
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 }

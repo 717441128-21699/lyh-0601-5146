@@ -11,8 +11,8 @@ import { NotificationType } from './entities/notification.entity';
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 
-  @Get()
-  @ApiOperation({ summary: '获取我的通知列表' })
+  @Get('/')
+  @ApiOperation({ summary: '获取当前用户通知列表（分页）' })
   @ApiResponse({ status: 200, description: '获取成功' })
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -82,6 +82,15 @@ export class NotificationsController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   sendNotification(@Body() dto: CreateNotificationDto) {
+    return this.notificationsService.create(dto);
+  }
+
+  @Post('/push')
+  @ApiOperation({ summary: '手动推送通知（内部用）' })
+  @ApiResponse({ status: 201, description: '推送成功' })
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  pushNotification(@Body() dto: CreateNotificationDto) {
     return this.notificationsService.create(dto);
   }
 }

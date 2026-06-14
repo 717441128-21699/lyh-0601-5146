@@ -50,7 +50,7 @@ export function getContestCertificates(contestId: number, params?: PageParams) {
 
 export function generateCertificates(contestId: number) {
   return request({
-    url: `/contests/${contestId}/certificates/generate`,
+    url: `/certificates/generate/${contestId}`,
     method: 'post'
   })
 }

@@ -7,7 +7,18 @@
     <el-row :gutter="20">
       <el-col :xs="12" :sm="12" :md="6">
         <StatCard
-          title="总用户数"
+          title="竞赛总数"
+          :value="stats.totalContests"
+          icon="Trophy"
+          color="#67C23A"
+          icon-bg="rgba(103, 194, 58, 0.1)"
+          sub-label="进行中"
+          :sub-value="`${stats.ongoingContests}个`"
+        />
+      </el-col>
+      <el-col :xs="12" :sm="12" :md="6">
+        <StatCard
+          title="用户总数"
           :value="stats.totalUsers"
           icon="User"
           color="#409EFF"
@@ -19,18 +30,7 @@
       </el-col>
       <el-col :xs="12" :sm="12" :md="6">
         <StatCard
-          title="总竞赛数"
-          :value="stats.totalContests"
-          icon="Trophy"
-          color="#67C23A"
-          icon-bg="rgba(103, 194, 58, 0.1)"
-          sub-label="进行中"
-          :sub-value="`${stats.ongoingContests}个`"
-        />
-      </el-col>
-      <el-col :xs="12" :sm="12" :md="6">
-        <StatCard
-          title="总提交数"
+          title="提交总次数"
           :value="stats.totalSubmissions"
           icon="Document"
           color="#E6A23C"
@@ -41,14 +41,13 @@
       </el-col>
       <el-col :xs="12" :sm="12" :md="6">
         <StatCard
-          title="待评分数"
-          :value="stats.pendingJudgements"
-          icon="EditPen"
+          title="本月反作弊告警"
+          :value="stats.antiCheatAlertsThisMonth"
+          icon="Warning"
           color="#F56C6C"
           icon-bg="rgba(245, 108, 108, 0.1)"
-          sub-label="需要处理"
-          sub-value="请尽快处理"
-          trend="down"
+          sub-label="待处理"
+          :sub-value="`${stats.pendingJudgements}条`"
         />
       </el-col>
     </el-row>
@@ -153,7 +152,7 @@ const stats = ref({
   totalUsers: 0,
   totalContests: 0,
   totalSubmissions: 0,
-  totalProblems: 0,
+  antiCheatAlertsThisMonth: 0,
   newUsersToday: 0,
   submissionsToday: 0,
   ongoingContests: 0,
@@ -174,7 +173,16 @@ const recentActivities = ref([
 async function loadStats() {
   try {
     const res = await getDashboardStats()
-    stats.value = res
+    stats.value = {
+      totalUsers: res.totalUsers || 0,
+      totalContests: res.totalContests || 0,
+      totalSubmissions: res.totalSubmissions || 0,
+      antiCheatAlertsThisMonth: res.antiCheatAlertsThisMonth || 0,
+      newUsersToday: res.newUsersToday || 0,
+      submissionsToday: res.submissionsToday || 0,
+      ongoingContests: res.ongoingContests || 0,
+      pendingJudgements: res.pendingJudgements || 0
+    }
   } catch (error) {
   }
 }

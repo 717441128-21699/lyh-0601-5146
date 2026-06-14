@@ -9,60 +9,60 @@ export class Ranking {
   id: number;
 
   @ApiProperty({ description: '竞赛ID' })
-  @Column()
+  @Column({ name: 'contest_id' })
   @Index()
   contestId: number;
 
   @ApiProperty({ description: '组别ID' })
-  @Column({ nullable: true })
+  @Column({ name: 'group_id', nullable: true })
   groupId: number;
 
   @ApiProperty({ description: '用户ID' })
-  @Column()
+  @Column({ name: 'user_id' })
   @Index()
   userId: number;
 
   @ApiProperty({ description: '总排名' })
-  @Column({ type: 'int' })
+  @Column({ name: 'rank', type: 'int' })
   rank: number;
 
   @ApiProperty({ description: '组别内排名' })
-  @Column({ type: 'int', nullable: true })
+  @Column({ name: 'group_rank', type: 'int', nullable: true })
   groupRank: number;
 
   @ApiProperty({ description: '最终得分' })
-  @Column({ type: 'int', default: 0 })
+  @Column({ name: 'score', type: 'int', default: 0 })
   score: number;
 
   @ApiProperty({ description: '解决题目数' })
-  @Column({ type: 'int', default: 0 })
+  @Column({ name: 'solved_count', type: 'int', default: 0 })
   solvedCount: number;
 
   @ApiProperty({ description: '总用时（秒）' })
-  @Column({ type: 'int', default: 0 })
+  @Column({ name: 'total_time', type: 'int', default: 0 })
   totalTime: number;
 
   @ApiProperty({ description: 'rating变化值' })
-  @Column({ type: 'int', default: 0 })
+  @Column({ name: 'rating_change', type: 'int', default: 0 })
   ratingChange: number;
 
   @ApiProperty({ description: '变化前rating' })
-  @Column({ type: 'int', default: 0 })
+  @Column({ name: 'previous_rating', type: 'int', default: 0 })
   previousRating: number;
 
   @ApiProperty({ description: '变化后rating' })
-  @Column({ type: 'int', default: 0 })
+  @Column({ name: 'new_rating', type: 'int', default: 0 })
   newRating: number;
 
   @ApiProperty({ description: '每题得分明细（JSON）' })
-  @Column({ type: 'json', nullable: true })
+  @Column({ name: 'problem_scores', type: 'json', nullable: true })
   problemScores: any;
 
   @ApiProperty({ description: '创建时间' })
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
   @ApiProperty({ description: '更新时间' })
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 }

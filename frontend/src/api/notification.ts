@@ -1,7 +1,7 @@
 import request, { type PageParams, type PageResult } from '@/utils/request'
-import type { Notification, CreateNotificationDto } from '@/types/notification'
+import type { Notification } from '@/types/notification'
 
-export function getNotificationList(params?: PageParams & { isRead?: boolean }) {
+export function getNotifications(params?: PageParams & { isRead?: boolean; type?: string }) {
   return request<PageResult<Notification>>({
     url: '/notifications',
     method: 'get',
@@ -9,12 +9,12 @@ export function getNotificationList(params?: PageParams & { isRead?: boolean }) 
   })
 }
 
-export function getMyNotifications(params?: PageParams & { isRead?: boolean }) {
-  return request<PageResult<Notification>>({
-    url: '/notifications/my',
-    method: 'get',
-    params
-  })
+export function getNotificationList(params?: PageParams & { isRead?: boolean; type?: string }) {
+  return getNotifications(params)
+}
+
+export function getMyNotifications(params?: PageParams & { isRead?: boolean; type?: string }) {
+  return getNotifications(params)
 }
 
 export function getUnreadCount() {
@@ -24,26 +24,38 @@ export function getUnreadCount() {
   })
 }
 
-export function readNotification(id: number) {
+export function markAsRead(id: number) {
   return request<Notification>({
     url: `/notifications/${id}/read`,
-    method: 'put'
+    method: 'patch'
+  })
+}
+
+export function readNotification(id: number) {
+  return markAsRead(id)
+}
+
+export function markAllAsRead() {
+  return request({
+    url: '/notifications/read-all',
+    method: 'patch'
   })
 }
 
 export function readAllNotifications() {
-  return request({
-    url: '/notifications/read-all',
-    method: 'put'
-  })
+  return markAllAsRead()
 }
 
-export function createNotification(data: CreateNotificationDto) {
+export function pushNotification(data: { userId: number; type: string; title: string; content: string; relatedId?: number; relatedType?: string }) {
   return request<Notification>({
-    url: '/notifications',
+    url: '/notifications/push',
     method: 'post',
     data
   })
+}
+
+export function createNotification(data: { userId: number; type: string; title: string; content: string; relatedId?: number; relatedType?: string }) {
+  return pushNotification(data)
 }
 
 export function deleteNotification(id: number) {

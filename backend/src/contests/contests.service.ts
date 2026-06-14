@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, In } from 'typeorm';
-import { Contest, ContestStatus, ContestType } from './entities/contest.entity';
+import { Contest, ContestStatus } from './entities/contest.entity';
 import { ContestGroup } from './entities/contest-group.entity';
 import { CreateContestDto } from './dto/create-contest.dto';
 import { UpdateContestDto } from './dto/update-contest.dto';
@@ -60,7 +60,6 @@ export class ContestsService {
       take: pageSize,
       order: sortBy ? { [sortBy]: sortOrder } : { createdAt: 'DESC' },
       relations: ['groups'],
-      where: { isPublic: true },
     });
 
     return { items, total, page, pageSize };
@@ -118,7 +117,6 @@ export class ContestsService {
     return this.contestsRepository.find({
       where: {
         status: ContestStatus.ONGOING,
-        isPublic: true,
       },
       order: { startTime: 'ASC' },
       relations: ['groups'],
@@ -129,9 +127,7 @@ export class ContestsService {
     const now = new Date();
     return this.contestsRepository.find({
       where: {
-        status: In([ContestStatus.REGISTRATION, ContestStatus.DRAFT]),
-        isPublic: true,
-        startTime: now,
+        status: In([ContestStatus.REGISTERING, ContestStatus.DRAFT]),
       },
       order: { startTime: 'ASC' },
       relations: ['groups'],
@@ -150,7 +146,9 @@ export class ContestsService {
     const groups = await this.getContestGroups(contestId);
 
     for (const group of groups) {
-      if (userRating >= group.minRating && userRating <= group.maxRating) {
+      const minRating = group.minRating ?? -Infinity;
+      const maxRating = group.maxRating ?? Infinity;
+      if (userRating >= minRating && userRating <= maxRating) {
         if (group.currentCount < group.maxCapacity) {
           return group;
         }

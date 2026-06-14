@@ -13,6 +13,16 @@ import { UserRole } from '../users/entities/user.entity';
 export class JudgesController {
   constructor(private readonly judgesService: JudgesService) {}
 
+  @Get('/pending')
+  @ApiOperation({ summary: '获取待评分主观题列表' })
+  @ApiResponse({ status: 200, description: '获取成功' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.JUDGE, UserRole.ADMIN)
+  @ApiBearerAuth()
+  getPendingSubmissions(@Query() paginationDto: PaginationDto) {
+    return this.judgesService.getPendingSubmissions(paginationDto);
+  }
+
   @Post('scores')
   @ApiOperation({ summary: '提交评分（评委）' })
   @ApiResponse({ status: 201, description: '评分成功' })
@@ -21,6 +31,32 @@ export class JudgesController {
   @ApiBearerAuth()
   createScore(@Body() dto: CreateJudgeScoreDto, @CurrentUser() user: any) {
     return this.judgesService.create(dto, user.userId);
+  }
+
+  @Post('/score/:submissionId')
+  @ApiOperation({ summary: '给指定提交打分（评委）' })
+  @ApiParam({ name: 'submissionId', description: '提交ID' })
+  @ApiResponse({ status: 201, description: '评分成功' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.JUDGE, UserRole.ADMIN)
+  @ApiBearerAuth()
+  scoreSubmission(
+    @Param('submissionId') submissionId: string,
+    @Body() dto: CreateJudgeScoreDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.judgesService.create({ ...dto, submissionId: +submissionId }, user.userId);
+  }
+
+  @Get('/submissions/:id')
+  @ApiOperation({ summary: '获取提交详情含已打分情况' })
+  @ApiParam({ name: 'id', description: '提交ID' })
+  @ApiResponse({ status: 200, description: '获取成功' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.JUDGE, UserRole.ADMIN)
+  @ApiBearerAuth()
+  getSubmissionWithScores(@Param('id') id: string) {
+    return this.judgesService.getSubmissionWithScores(+id);
   }
 
   @Get('scores')

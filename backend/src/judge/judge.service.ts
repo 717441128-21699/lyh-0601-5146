@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ProgrammingLanguage } from '../submissions/entities/submission.entity';
 import { SubmissionStatus } from '../submissions/entities/submission.entity';
+import { TestCase } from '../problems/entities/problem.entity';
 
 export interface JudgeRequest {
   problemId: number;
@@ -8,6 +9,7 @@ export interface JudgeRequest {
   code: string;
   timeLimit: number;
   memoryLimit: number;
+  testCases?: TestCase[];
 }
 
 export interface TestCaseResult {
@@ -67,43 +69,6 @@ const LANGUAGE_CONFIGS: Record<ProgrammingLanguage, LanguageConfig> = {
     compilerOutputFile: (sourceFile: string) => sourceFile,
   },
 };
-
-interface TestCase {
-  id: number;
-  input: string;
-  expectedOutput: string;
-}
-
-function getMockTestCases(problemId: number): TestCase[] {
-  const baseCases = [
-    {
-      id: 1,
-      input: '1 2\n',
-      expectedOutput: '3\n',
-    },
-    {
-      id: 2,
-      input: '10 20\n',
-      expectedOutput: '30\n',
-    },
-    {
-      id: 3,
-      input: '-5 5\n',
-      expectedOutput: '0\n',
-    },
-    {
-      id: 4,
-      input: '100 200\n',
-      expectedOutput: '300\n',
-    },
-    {
-      id: 5,
-      input: '999999 1\n',
-      expectedOutput: '1000000\n',
-    },
-  ];
-  return baseCases;
-}
 
 function normalizeOutput(output: string): string {
   return output
@@ -223,11 +188,17 @@ export class JudgeService {
   }
 
   async judge(request: JudgeRequest): Promise<JudgeResult> {
-    const { problemId, language, code, timeLimit, memoryLimit } = request;
+    const { problemId, language, code, timeLimit, memoryLimit, testCases } = request;
 
     this.logger.log(`开始评测: problemId=${problemId}, language=${language}`);
 
-    const testCases = getMockTestCases(problemId);
+    const cases: TestCase[] = testCases && testCases.length > 0 ? testCases : [
+      { id: 1, input: '1 2\n', expectedOutput: '3\n' },
+      { id: 2, input: '10 20\n', expectedOutput: '30\n' },
+      { id: 3, input: '-5 5\n', expectedOutput: '0\n' },
+      { id: 4, input: '100 200\n', expectedOutput: '300\n' },
+      { id: 5, input: '999999 1\n', expectedOutput: '1000000\n' },
+    ];
 
     const compilationResult = await this.simulateCompilation(code, language);
     if (!compilationResult.success) {
@@ -246,7 +217,7 @@ export class JudgeService {
     let maxMemory = 0;
     let finalStatus = SubmissionStatus.ACCEPTED;
 
-    for (const testCase of testCases) {
+    for (const testCase of cases) {
       const execution = this.simulateExecution(
         code,
         testCase.input,

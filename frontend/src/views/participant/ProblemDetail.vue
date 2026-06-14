@@ -12,7 +12,7 @@
                 {{ getDifficultyText(problem.difficulty) }}
               </el-tag>
               <el-tag size="large">{{ getTypeText(problem.type) }}</el-tag>
-              <span v-if="problem.points" class="points">分值: {{ problem.points }}</span>
+              <span v-if="problem.score" class="points">分值: {{ problem.score }}</span>
               <span class="stats">
                 <el-icon><User /></el-icon>
                 通过: {{ problem.acceptedCount || 0 }} / 提交: {{ problem.submissionCount || 0 }}
@@ -76,11 +76,28 @@
               </el-button>
             </div>
           </template>
-          <CodeEditor
-            v-model="code"
-            :submitting="submitting"
-            @submit="handleSubmit"
-          />
+          <div class="submit-form">
+            <div class="language-selector mb-16">
+              <span class="label mr-12">编程语言：</span>
+              <el-select v-model="selectedLanguage" style="width: 180px;">
+                <el-option label="C++" value="cpp" />
+                <el-option label="Java" value="java" />
+                <el-option label="Python" value="python" />
+                <el-option label="JavaScript" value="javascript" />
+              </el-select>
+            </div>
+            <textarea
+              v-model="code"
+              class="code-textarea"
+              placeholder="请在此输入您的代码..."
+              spellcheck="false"
+            />
+            <div class="submit-actions mt-16">
+              <el-button type="primary" size="large" :loading="submitting" @click="handleSubmit">
+                <el-icon><Promotion /></el-icon>提交代码
+              </el-button>
+            </div>
+          </div>
           <div class="submit-result mt-20" v-if="lastSubmission">
             <el-alert
               :title="getSubmissionStatus(lastSubmission.status)"
@@ -89,12 +106,15 @@
               :closable="false"
             >
               <div class="result-detail" v-if="lastSubmission.score !== undefined">
-                得分: <strong>{{ lastSubmission.score }}/{{ lastSubmission.maxScore }}</strong>
-                <span v-if="lastSubmission.runtime" class="ml-20">用时: {{ lastSubmission.runtime }}ms</span>
-                <span v-if="lastSubmission.memory" class="ml-20">内存: {{ lastSubmission.memory }}MB</span>
+                得分: <strong>{{ lastSubmission.score }}分</strong>
+                <span v-if="lastSubmission.executionTime" class="ml-20">用时: {{ lastSubmission.executionTime }}ms</span>
+                <span v-if="lastSubmission.executionMemory" class="ml-20">内存: {{ lastSubmission.executionMemory }}MB</span>
+                <span v-if="lastSubmission.testCasePassed !== undefined" class="ml-20">
+                  通过用例: {{ lastSubmission.testCasePassed }}/{{ lastSubmission.testCaseTotal }}
+                </span>
               </div>
-              <div v-if="lastSubmission.errorMessage" class="error-msg">
-                {{ lastSubmission.errorMessage }}
+              <div v-if="lastSubmission.judgeLog" class="error-msg">
+                {{ lastSubmission.judgeLog }}
               </div>
             </el-alert>
           </div>
@@ -108,8 +128,8 @@
             <el-table-column label="时间" width="140">
               <template #default="{ row }">{{ formatTime(row.submittedAt) }}</template>
             </el-table-column>
-            <el-table-column label="语言" width="80" prop="language" />
-            <el-table-column label="状态" width="100">
+            <el-table-column label="语言" width="90" prop="language" />
+            <el-table-column label="状态" width="120">
               <template #default="{ row }">
                 <el-tag :type="getResultType(row.status)" size="small">
                   {{ getSubmissionStatus(row.status) }}
@@ -127,12 +147,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getProblemDetail } from '@/api/problem'
-import { submitCode, getProblemSubmissions } from '@/api/submission'
-import { ElMessage } from 'element-plus'
-import CodeEditor from '@/components/CodeEditor.vue'
+import { submitCode, getSubmission, getProblemSubmissions } from '@/api/submission'
+import { getContestRanking } from '@/api/ranking'
+import { ElMessage, ElNotification } from 'element-plus'
 import type { Problem } from '@/types/problem'
 import type { Submission } from '@/types/submission'
 import dayjs from 'dayjs'
@@ -144,30 +164,38 @@ const loading = ref(false)
 const submitting = ref(false)
 const problem = ref<Problem | null>(null)
 const code = ref('')
+const selectedLanguage = ref<'cpp' | 'java' | 'python' | 'javascript'>('cpp')
 const showHistory = ref(false)
 const lastSubmission = ref<Submission | null>(null)
 const submissionHistory = ref<Submission[]>([])
+const pollTimer = ref<number | null>(null)
 
 const problemId = computed(() => Number(route.params.id))
 const contestId = computed(() => route.query.contestId ? Number(route.query.contestId) : undefined)
 
+const codeTemplates: Record<string, string> = {
+  cpp: '#include <iostream>\nusing namespace std;\n\nint main() {\n    \n    return 0;\n}',
+  java: 'import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        \n    }\n}',
+  python: '# your code here\n',
+  javascript: '// your code here\n'
+}
+
 function getDifficultyType(difficulty: string) {
-  const map: Record<string, string> = { easy: 'success', medium: 'warning', hard: 'danger' }
+  const map: Record<string, string> = { easy: 'success', medium: 'warning', hard: 'danger', expert: 'danger' }
   return map[difficulty] || 'info'
 }
 
 function getDifficultyText(difficulty: string) {
-  const map: Record<string, string> = { easy: '简单', medium: '中等', hard: '困难' }
+  const map: Record<string, string> = { easy: '简单', medium: '中等', hard: '困难', expert: '专家' }
   return map[difficulty] || '未知'
 }
 
 function getTypeText(type: string) {
   const map: Record<string, string> = {
-    programming: '编程题',
-    subjective: '主观题',
-    multiple_choice: '选择题'
+    objective: '客观题',
+    subjective: '主观题'
   }
-  return map[type] || '编程题'
+  return map[type] || type
 }
 
 function getResultType(status: string) {
@@ -177,12 +205,11 @@ function getResultType(status: string) {
     time_limit_exceeded: 'warning',
     memory_limit_exceeded: 'warning',
     runtime_error: 'error',
-    compilation_error: 'info',
+    compile_error: 'info',
     pending: 'warning',
     judging: 'info',
     system_error: 'error',
-    partially_accepted: 'warning',
-    pending_judge: 'warning'
+    cheating: 'error'
   }
   return map[status] || 'info'
 }
@@ -190,16 +217,15 @@ function getResultType(status: string) {
 function getSubmissionStatus(status: string) {
   const map: Record<string, string> = {
     pending: '等待评测',
-    judging: '评测中',
+    judging: '评测中...',
     accepted: '通过 ✅',
     wrong_answer: '答案错误 ❌',
     time_limit_exceeded: '超时 ⏰',
     memory_limit_exceeded: '内存超限',
     runtime_error: '运行时错误',
-    compilation_error: '编译错误',
+    compile_error: '编译错误',
     system_error: '系统错误',
-    partially_accepted: '部分通过',
-    pending_judge: '等待评委评分'
+    cheating: '作弊嫌疑'
   }
   return map[status] || status
 }
@@ -212,6 +238,7 @@ async function loadProblem() {
   loading.value = true
   try {
     problem.value = await getProblemDetail(problemId.value)
+    code.value = codeTemplates[selectedLanguage.value] || ''
   } finally {
     loading.value = false
   }
@@ -225,21 +252,54 @@ async function loadHistory() {
   }
 }
 
-async function handleSubmit(data: { code: string; language: string }) {
+function pollSubmissionStatus(submissionId: number) {
+  if (pollTimer.value) {
+    clearInterval(pollTimer.value)
+  }
+  pollTimer.value = window.setInterval(async () => {
+    try {
+      const result = await getSubmission(submissionId)
+      lastSubmission.value = result
+      if (result.status !== 'pending' && result.status !== 'judging') {
+        if (pollTimer.value) {
+          clearInterval(pollTimer.value)
+          pollTimer.value = null
+        }
+        ElNotification({
+          title: '评测完成',
+          message: `您的提交已评测完成，状态：${getSubmissionStatus(result.status)}`,
+          type: result.status === 'accepted' ? 'success' : 'warning',
+          duration: 3000
+        })
+        loadHistory()
+        if (contestId.value) {
+          try {
+            await getContestRanking(contestId.value, { pageSize: 1 })
+          } catch (e) {}
+        }
+      }
+    } catch (e) {
+    }
+  }, 3000)
+}
+
+async function handleSubmit() {
+  if (!code.value.trim()) {
+    ElMessage.warning('请先输入代码')
+    return
+  }
   submitting.value = true
   try {
     const res = await submitCode({
       problemId: problemId.value,
       contestId: contestId.value,
-      code: data.code,
-      language: data.language
+      code: code.value,
+      language: selectedLanguage.value
     })
     lastSubmission.value = res
-    ElMessage.success('提交成功！')
+    ElMessage.success('提交成功！正在评测中...')
     if (res.status === 'pending' || res.status === 'judging') {
-      setTimeout(() => {
-        loadHistory()
-      }, 2000)
+      pollSubmissionStatus(res.id)
     } else {
       loadHistory()
     }
@@ -257,6 +317,12 @@ function goBack() {
 onMounted(() => {
   loadProblem()
   loadHistory()
+})
+
+onUnmounted(() => {
+  if (pollTimer.value) {
+    clearInterval(pollTimer.value)
+  }
 })
 </script>
 
@@ -357,6 +423,38 @@ onMounted(() => {
   font-weight: 600;
 }
 
+.submit-form {
+  .language-selector {
+    display: flex;
+    align-items: center;
+  }
+
+  .label {
+    font-size: 14px;
+    color: #606266;
+  }
+
+  .code-textarea {
+    width: 100%;
+    min-height: 400px;
+    padding: 16px;
+    border: 1px solid #dcdfe6;
+    border-radius: 4px;
+    outline: none;
+    resize: vertical;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    background: #1e1e1e;
+    color: #d4d4d4;
+    tab-size: 4;
+
+    &:focus {
+      border-color: #409EFF;
+    }
+  }
+}
+
 .submit-result {
   .result-detail {
     margin-top: 8px;
@@ -373,5 +471,17 @@ onMounted(() => {
     font-family: 'Consolas', monospace;
     white-space: pre-wrap;
   }
+}
+
+.mb-16 {
+  margin-bottom: 16px;
+}
+
+.mt-16 {
+  margin-top: 16px;
+}
+
+.mr-12 {
+  margin-right: 12px;
 }
 </style>

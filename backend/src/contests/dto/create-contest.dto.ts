@@ -1,8 +1,7 @@
-import { IsString, IsOptional, IsInt, IsBoolean, IsDate, IsEnum, Min, MaxLength, IsArray, ValidateNested, ArrayNotEmpty } from 'class-validator';
+import { IsString, IsOptional, IsInt, IsDate, IsEnum, Min, MaxLength, IsArray, ValidateNested, ArrayNotEmpty, IsNumber, IsDecimal } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ContestStatus, ContestType } from '../entities/contest.entity';
-import { ContestGroupLevel } from '../entities/contest-group.entity';
+import { ContestType, ContestDifficulty } from '../entities/contest.entity';
 
 class ContestGroupDto {
   @ApiProperty({ description: '组别名称' })
@@ -10,29 +9,28 @@ class ContestGroupDto {
   @MaxLength(100)
   name: string;
 
-  @ApiProperty({ description: '组别级别', enum: ContestGroupLevel })
-  @IsEnum(ContestGroupLevel)
-  level: ContestGroupLevel;
+  @ApiPropertyOptional({ description: '组别描述' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  description?: string;
 
-  @ApiProperty({ description: '最小rating' })
+  @ApiPropertyOptional({ description: '最小rating' })
+  @IsOptional()
   @IsInt()
   @Min(0)
-  minRating: number;
+  minRating?: number;
 
-  @ApiProperty({ description: '最大rating' })
+  @ApiPropertyOptional({ description: '最大rating' })
+  @IsOptional()
   @IsInt()
   @Min(0)
-  maxRating: number;
+  maxRating?: number;
 
   @ApiProperty({ description: '最大容量' })
   @IsInt()
   @Min(1)
   maxCapacity: number;
-
-  @ApiPropertyOptional({ description: '描述' })
-  @IsOptional()
-  @IsString()
-  description?: string;
 }
 
 export class CreateContestDto {
@@ -49,6 +47,32 @@ export class CreateContestDto {
   @ApiProperty({ description: '竞赛类型', enum: ContestType })
   @IsEnum(ContestType)
   type: ContestType;
+
+  @ApiProperty({ description: '竞赛难度', enum: ContestDifficulty })
+  @IsEnum(ContestDifficulty)
+  difficulty: ContestDifficulty;
+
+  @ApiProperty({ description: '主办方' })
+  @IsString()
+  @MaxLength(100)
+  organizer: string;
+
+  @ApiPropertyOptional({ description: '最大参赛人数' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  maxParticipants?: number;
+
+  @ApiPropertyOptional({ description: '反作弊检测阈值' })
+  @IsOptional()
+  @IsNumber()
+  antiCheatThreshold?: number;
+
+  @ApiPropertyOptional({ description: '检查点数量' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  checkPointCount?: number;
 
   @ApiPropertyOptional({ description: '封面图片' })
   @IsOptional()
@@ -74,33 +98,6 @@ export class CreateContestDto {
   @Type(() => Date)
   @IsDate()
   endTime: Date;
-
-  @ApiPropertyOptional({ description: '总题目数' })
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  problemCount?: number;
-
-  @ApiPropertyOptional({ description: '总分值' })
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  totalScore?: number;
-
-  @ApiPropertyOptional({ description: '是否启用自动分配赛道', default: true })
-  @IsOptional()
-  @IsBoolean()
-  autoAssignTrack?: boolean;
-
-  @ApiPropertyOptional({ description: '是否公开', default: true })
-  @IsOptional()
-  @IsBoolean()
-  isPublic?: boolean;
-
-  @ApiPropertyOptional({ description: '访问密码' })
-  @IsOptional()
-  @IsString()
-  accessPassword?: string;
 
   @ApiPropertyOptional({ description: '规则说明' })
   @IsOptional()

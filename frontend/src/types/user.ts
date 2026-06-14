@@ -1,23 +1,19 @@
-export enum UserRole {
-  PARTICIPANT = 'participant',
-  ADMIN = 'admin',
-  JUDGE = 'judge'
-}
+export type UserRole = 'participant' | 'admin' | 'judge'
 
 export interface User {
   id: number
   username: string
   email: string
-  nickname: string
-  avatar?: string
-  role: UserRole
+  realName: string
   phone?: string
-  school?: string
-  grade?: string
-  realName?: string
-  status: 'active' | 'disabled'
+  avatar?: string
+  organization?: string
+  role: UserRole
+  rating: number
+  totalScore: number
+  submissionCount: number
+  status: 'active' | 'banned'
   createdAt: string
-  updatedAt: string
 }
 
 export interface LoginForm {
@@ -31,11 +27,10 @@ export interface RegisterForm {
   password: string
   confirmPassword: string
   email: string
-  nickname: string
+  realName: string
   role: UserRole
-  realName?: string
-  school?: string
   phone?: string
+  organization?: string
 }
 
 export interface LoginResponse {
@@ -44,10 +39,9 @@ export interface LoginResponse {
 }
 
 export interface UpdateUserDto {
-  nickname?: string
+  realName?: string
   avatar?: string
   phone?: string
-  school?: string
-  realName?: string
+  organization?: string
   password?: string
 }

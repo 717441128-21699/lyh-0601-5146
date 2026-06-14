@@ -4,16 +4,22 @@ import { ContestGroup } from './contest-group.entity';
 
 export enum ContestStatus {
   DRAFT = 'draft',
-  REGISTRATION = 'registration',
+  REGISTERING = 'registering',
   ONGOING = 'ongoing',
   ENDED = 'ended',
   CANCELLED = 'cancelled',
 }
 
 export enum ContestType {
-  RATED = 'rated',
-  UNRATED = 'unrated',
-  PRACTICE = 'practice',
+  INDIVIDUAL = 'individual',
+  TEAM = 'team',
+}
+
+export enum ContestDifficulty {
+  EASY = 'easy',
+  MEDIUM = 'medium',
+  HARD = 'hard',
+  EXPERT = 'expert',
 }
 
 @Entity('contests')
@@ -32,6 +38,7 @@ export class Contest {
 
   @ApiProperty({ description: '竞赛状态', enum: ContestStatus })
   @Column({
+    name: 'status',
     type: 'enum',
     enum: ContestStatus,
     default: ContestStatus.DRAFT,
@@ -40,55 +47,61 @@ export class Contest {
 
   @ApiProperty({ description: '竞赛类型', enum: ContestType })
   @Column({
+    name: 'type',
     type: 'enum',
     enum: ContestType,
-    default: ContestType.RATED,
+    default: ContestType.INDIVIDUAL,
   })
   type: ContestType;
 
+  @ApiProperty({ description: '竞赛难度', enum: ContestDifficulty })
+  @Column({
+    name: 'difficulty',
+    type: 'enum',
+    enum: ContestDifficulty,
+    default: ContestDifficulty.MEDIUM,
+  })
+  difficulty: ContestDifficulty;
+
+  @ApiProperty({ description: '最大参赛人数' })
+  @Column({ name: 'max_participants', type: 'int', nullable: true })
+  maxParticipants: number;
+
+  @ApiProperty({ description: '反作弊检测阈值' })
+  @Column({ name: 'anti_cheat_threshold', type: 'decimal', precision: 5, scale: 2, default: 0.85 })
+  antiCheatThreshold: number;
+
+  @ApiProperty({ description: '检查点数量' })
+  @Column({ name: 'check_point_count', type: 'int', default: 3 })
+  checkPointCount: number;
+
+  @ApiProperty({ description: '主办方' })
+  @Column({ name: 'organizer', length: 100 })
+  organizer: string;
+
+  @ApiProperty({ description: '创建者ID' })
+  @Column({ name: 'created_by' })
+  creatorId: number;
+
   @ApiProperty({ description: '封面图片' })
-  @Column({ length: 255, nullable: true })
+  @Column({ name: 'cover_image', length: 255, nullable: true })
   coverImage: string;
 
   @ApiProperty({ description: '报名开始时间' })
-  @Column({ type: 'datetime' })
+  @Column({ name: 'registration_start_time', type: 'datetime' })
   registrationStartTime: Date;
 
   @ApiProperty({ description: '报名结束时间' })
-  @Column({ type: 'datetime' })
+  @Column({ name: 'registration_end_time', type: 'datetime' })
   registrationEndTime: Date;
 
   @ApiProperty({ description: '竞赛开始时间' })
-  @Column({ type: 'datetime' })
+  @Column({ name: 'start_time', type: 'datetime' })
   startTime: Date;
 
   @ApiProperty({ description: '竞赛结束时间' })
-  @Column({ type: 'datetime' })
+  @Column({ name: 'end_time', type: 'datetime' })
   endTime: Date;
-
-  @ApiProperty({ description: '总题目数' })
-  @Column({ type: 'int', default: 0 })
-  problemCount: number;
-
-  @ApiProperty({ description: '总分值' })
-  @Column({ type: 'int', default: 0 })
-  totalScore: number;
-
-  @ApiProperty({ description: '是否启用自动分配赛道' })
-  @Column({ type: 'boolean', default: true })
-  autoAssignTrack: boolean;
-
-  @ApiProperty({ description: '创建者ID' })
-  @Column()
-  creatorId: number;
-
-  @ApiProperty({ description: '是否公开' })
-  @Column({ type: 'boolean', default: true })
-  isPublic: boolean;
-
-  @ApiProperty({ description: '访问密码（非公开时使用）' })
-  @Column({ length: 50, nullable: true })
-  accessPassword: string;
 
   @ApiProperty({ description: '规则说明' })
   @Column({ type: 'text', nullable: true })
@@ -99,13 +112,16 @@ export class Contest {
   prizes: string;
 
   @ApiProperty({ description: '创建时间' })
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
   @ApiProperty({ description: '更新时间' })
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
   @OneToMany(() => ContestGroup, (group) => group.contest, { cascade: true })
   groups: ContestGroup[];
+
+  isRegistered?: boolean;
+  registrationInfo?: any;
 }

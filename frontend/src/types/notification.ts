@@ -1,12 +1,4 @@
-import type { User } from './user'
-
-export enum NotificationType {
-  SYSTEM = 'system',
-  CONTEST = 'contest',
-  SUBMISSION = 'submission',
-  JUDGE = 'judge',
-  CERTIFICATE = 'certificate'
-}
+export type NotificationType = 'registration' | 'score' | 'cheating' | 'certificate' | 'system'
 
 export interface Notification {
   id: number
@@ -14,13 +6,10 @@ export interface Notification {
   type: NotificationType
   title: string
   content: string
-  isRead: boolean
   relatedId?: number
   relatedType?: string
-  senderId?: number
-  sender?: User
+  isRead: boolean
   createdAt: string
-  readAt?: string
 }
 
 export interface CreateNotificationDto {
@@ -30,5 +19,4 @@ export interface CreateNotificationDto {
   content: string
   relatedId?: number
   relatedType?: string
-  senderId?: number
 }

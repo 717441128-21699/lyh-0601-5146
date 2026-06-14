@@ -12,6 +12,9 @@ import { AntiCheatService } from '../anti-cheat/anti-cheat.service';
 import { RegistrationsService } from '../registrations/registrations.service';
 import { ContestStatus } from '../contests/entities/contest.entity';
 import { ContestsService } from '../contests/contests.service';
+import { RankingsService } from '../rankings/rankings.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../notifications/entities/notification.entity';
 
 @Injectable()
 export class SubmissionsService {
@@ -24,6 +27,8 @@ export class SubmissionsService {
     private antiCheatService: AntiCheatService,
     private registrationsService: RegistrationsService,
     private contestsService: ContestsService,
+    private rankingsService: RankingsService,
+    private notificationsService: NotificationsService,
   ) {}
 
   private generateCodeHash(code: string, language: ProgrammingLanguage): string {
@@ -44,7 +49,7 @@ export class SubmissionsService {
           submitCodeDto.contestId,
           userId,
         );
-        if (!isRegistered) {
+        if (!(isRegistered as any).isRegistered) {
           throw new BadRequestException('您未报名该竞赛');
         }
       }
@@ -81,15 +86,17 @@ export class SubmissionsService {
           code: submitCodeDto.code,
           timeLimit: problem.timeLimit,
           memoryLimit: problem.memoryLimit,
+          testCases: problem.testCases,
         });
 
         const isAccepted = judgeResult.status === SubmissionStatus.ACCEPTED;
+        const score = isAccepted ? problem.score : 0;
 
         await this.submissionsRepository.update(savedSubmission.id, {
           status: judgeResult.status,
-          score: isAccepted ? problem.score : 0,
-          runTime: judgeResult.runTime,
-          memoryUsage: judgeResult.memoryUsage,
+          score,
+          executionTime: judgeResult.runTime,
+          executionMemory: judgeResult.memoryUsage,
           errorMessage: judgeResult.errorMessage,
           judgeDetails: judgeResult.details,
           isAccepted,
@@ -108,9 +115,30 @@ export class SubmissionsService {
           if (prevAccepted === 0) {
             await this.usersService.incrementSolvedCount(userId);
           }
+
+          if (submitCodeDto.contestId) {
+            await this.updateRankingAfterSubmission(
+              submitCodeDto.contestId,
+              userId,
+              submitCodeDto.problemId,
+              score,
+              judgeResult.runTime,
+            );
+          }
         }
 
-        await this.antiCheatService.checkSimilarity(savedSubmission.id, submitCodeDto.problemId, codeHash, submitCodeDto.code);
+        await this.notificationsService.create({
+          userId,
+          type: NotificationType.SCORE,
+          title: '评测完成',
+          content: `您对题目「${problem.title}」的评测结果：${judgeResult.status}，得分：${score}`,
+          relatedId: savedSubmission.id,
+          link: `/submissions/${savedSubmission.id}`,
+        });
+
+        if (isAccepted) {
+          await this.antiCheatService.detectSimilarity(savedSubmission.id);
+        }
       } catch (error) {
         await this.submissionsRepository.update(savedSubmission.id, {
           status: SubmissionStatus.SYSTEM_ERROR,
@@ -120,6 +148,44 @@ export class SubmissionsService {
     });
 
     return this.findOne(savedSubmission.id);
+  }
+
+  private async updateRankingAfterSubmission(
+    contestId: number,
+    userId: number,
+    problemId: number,
+    score: number,
+    timeMs: number,
+  ): Promise<void> {
+    try {
+      const allUserSubmissions = await this.submissionsRepository.find({
+        where: { contestId, userId, isAccepted: true },
+      });
+
+      const solvedProblemIds = new Set<number>();
+      let totalScore = 0;
+      let totalTime = Math.floor(timeMs / 1000);
+
+      for (const s of allUserSubmissions) {
+        if (!solvedProblemIds.has(s.problemId)) {
+          solvedProblemIds.add(s.problemId);
+          totalScore += s.score;
+          totalTime += Math.floor((s.executionTime || 0) / 1000);
+        }
+      }
+
+      const registration = await this.registrationsService.findByContestAndUser(contestId, userId);
+      if (registration) {
+        await this.registrationsService.updateScore(
+          registration.id,
+          totalScore,
+          solvedProblemIds.size,
+          totalTime,
+        );
+      }
+    } catch (error) {
+      console.error('更新排名失败:', error);
+    }
   }
 
   async findAll(paginationDto: PaginationDto, filters?: {

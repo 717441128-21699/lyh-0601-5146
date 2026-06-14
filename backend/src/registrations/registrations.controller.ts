@@ -26,6 +26,18 @@ export class RegistrationsController {
     return this.registrationsService.create(+contestId, user.userId);
   }
 
+  @Post('/contests/:contestId/register')
+  @ApiOperation({ summary: '报名竞赛（兼容路径）' })
+  @ApiParam({ name: 'contestId', description: '竞赛ID' })
+  @ApiResponse({ status: 201, description: '报名成功' })
+  @ApiResponse({ status: 400, description: '报名失败' })
+  @ApiResponse({ status: 409, description: '已报名' })
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  createCompatible(@Param('contestId') contestId: string, @CurrentUser() user: any) {
+    return this.registrationsService.create(+contestId, user.userId);
+  }
+
   @Get()
   @ApiOperation({ summary: '获取所有报名记录（管理员）' })
   @ApiQuery({ name: 'contestId', required: false })
@@ -107,6 +119,16 @@ export class RegistrationsController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   checkRegistration(@Param('contestId') contestId: string, @CurrentUser() user: any) {
+    return this.registrationsService.isUserRegistered(+contestId, user.userId);
+  }
+
+  @Get('/contests/:contestId/registration-status')
+  @ApiOperation({ summary: '检查是否已报名（兼容路径）' })
+  @ApiParam({ name: 'contestId', description: '竞赛ID' })
+  @ApiResponse({ status: 200, description: '获取成功' })
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  checkRegistrationCompatible(@Param('contestId') contestId: string, @CurrentUser() user: any) {
     return this.registrationsService.isUserRegistered(+contestId, user.userId);
   }
 

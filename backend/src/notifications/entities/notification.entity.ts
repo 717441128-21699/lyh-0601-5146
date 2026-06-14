@@ -3,6 +3,10 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export enum NotificationType {
   SYSTEM = 'system',
+  REGISTRATION = 'registration',
+  SCORE = 'score',
+  CHEATING = 'cheating',
+  CERTIFICATE = 'certificate',
   CONTEST = 'contest',
   SUBMISSION = 'submission',
   MESSAGE = 'message',
@@ -15,16 +19,17 @@ export class Notification {
   id: number;
 
   @ApiProperty({ description: '接收用户ID' })
-  @Column()
+  @Column({ name: 'user_id' })
   @Index()
   userId: number;
 
   @ApiProperty({ description: '发送者用户ID（系统通知为null）' })
-  @Column({ nullable: true })
+  @Column({ name: 'sender_id', nullable: true })
   senderId: number;
 
   @ApiProperty({ description: '通知类型', enum: NotificationType })
   @Column({
+    name: 'type',
     type: 'enum',
     enum: NotificationType,
     default: NotificationType.SYSTEM,
@@ -32,28 +37,28 @@ export class Notification {
   type: NotificationType;
 
   @ApiProperty({ description: '通知标题' })
-  @Column({ length: 200 })
+  @Column({ name: 'title', length: 200 })
   title: string;
 
   @ApiProperty({ description: '通知内容' })
-  @Column({ type: 'text' })
+  @Column({ name: 'content', type: 'text' })
   content: string;
 
   @ApiProperty({ description: '关联ID（如竞赛ID、提交ID）' })
-  @Column({ type: 'int', nullable: true })
+  @Column({ name: 'related_id', type: 'int', nullable: true })
   relatedId: number;
 
   @ApiProperty({ description: '跳转链接' })
-  @Column({ length: 500, nullable: true })
+  @Column({ name: 'link', length: 500, nullable: true })
   link: string;
 
   @ApiProperty({ description: '是否已读' })
-  @Column({ type: 'boolean', default: false })
+  @Column({ name: 'is_read', type: 'boolean', default: false })
   @Index()
   isRead: boolean;
 
   @ApiProperty({ description: '创建时间' })
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   @Index()
   createdAt: Date;
 }

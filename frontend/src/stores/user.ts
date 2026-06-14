@@ -3,18 +3,18 @@ import { ref, computed } from 'vue'
 import type { User, LoginForm, RegisterForm } from '@/types/user'
 import { login, register, getCurrentUser, logout as apiLogout } from '@/api/auth'
 import { getToken, setToken, removeToken, setUserInfo, getUserInfo } from '@/utils/auth'
-import { UserRole } from '@/types/user'
 
 export const useUserStore = defineStore('user', () => {
   const token = ref<string | null>(getToken())
   const userInfo = ref<User | null>(getUserInfo<User>())
   const loading = ref(false)
+  const user = computed(() => userInfo.value)
 
   const isLoggedIn = computed(() => !!token.value)
   const role = computed(() => userInfo.value?.role)
-  const isAdmin = computed(() => userInfo.value?.role === UserRole.ADMIN)
-  const isJudge = computed(() => userInfo.value?.role === UserRole.JUDGE)
-  const isParticipant = computed(() => userInfo.value?.role === UserRole.PARTICIPANT)
+  const isAdmin = computed(() => userInfo.value?.role === 'admin')
+  const isJudge = computed(() => userInfo.value?.role === 'judge')
+  const isParticipant = computed(() => userInfo.value?.role === 'participant')
 
   async function handleLogin(form: LoginForm) {
     loading.value = true
@@ -71,6 +71,7 @@ export const useUserStore = defineStore('user', () => {
   return {
     token,
     userInfo,
+    user,
     loading,
     isLoggedIn,
     role,

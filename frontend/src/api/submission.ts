@@ -9,6 +9,13 @@ export function submitCode(data: SubmitCodeDto) {
   })
 }
 
+export function getSubmission(id: number) {
+  return request<Submission>({
+    url: `/submissions/${id}`,
+    method: 'get'
+  })
+}
+
 export function getSubmissionList(params?: PageParams) {
   return request<PageResult<Submission>>({
     url: '/submissions',
@@ -17,7 +24,7 @@ export function getSubmissionList(params?: PageParams) {
   })
 }
 
-export function getMySubmissions(params?: PageParams) {
+export function getMySubmissions(params?: PageParams & { contestId?: number }) {
   return request<PageResult<Submission>>({
     url: '/submissions/my',
     method: 'get',
@@ -42,7 +49,7 @@ export function getContestSubmissions(contestId: number, params?: PageParams) {
 
 export function getProblemSubmissions(problemId: number, params?: PageParams) {
   return request<PageResult<Submission>>({
-    url: `/problems/${problemId}/submissions`,
+    url: `/submissions/problem/${problemId}`,
     method: 'get',
     params
   })

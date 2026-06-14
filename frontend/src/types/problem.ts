@@ -1,65 +1,47 @@
-export enum ProblemDifficulty {
-  EASY = 'easy',
-  MEDIUM = 'medium',
-  HARD = 'hard'
-}
-
-export enum ProblemType {
-  PROGRAMMING = 'programming',
-  SUBJECTIVE = 'subjective',
-  MULTIPLE_CHOICE = 'multiple_choice'
-}
+export type ProblemType = 'objective' | 'subjective'
+export type ProblemDifficulty = 'easy' | 'medium' | 'hard' | 'expert'
 
 export interface TestCase {
   input: string
   output: string
-  isSample?: boolean
-  points?: number
 }
 
 export interface Problem {
   id: number
+  contestId: number
+  groupId?: number
   title: string
   description: string
   inputDescription?: string
   outputDescription?: string
-  hint?: string
-  difficulty: ProblemDifficulty
-  type: ProblemType
-  timeLimit?: number
-  memoryLimit?: number
-  points?: number
-  contestId?: number
-  orderIndex?: number
-  languages?: string[]
   sampleInput?: string
   sampleOutput?: string
+  hint?: string
+  type: ProblemType
+  difficulty: ProblemDifficulty
+  timeLimit: number
+  memoryLimit: number
+  score: number
   testCases?: TestCase[]
-  submissionCount?: number
-  acceptedCount?: number
-  tags?: string[]
-  createdAt: string
-  updatedAt: string
+  createdBy: number
 }
 
 export interface CreateProblemDto {
+  contestId: number
+  groupId?: number
   title: string
   description: string
   inputDescription?: string
   outputDescription?: string
-  hint?: string
-  difficulty: ProblemDifficulty
-  type: ProblemType
-  timeLimit?: number
-  memoryLimit?: number
-  points?: number
-  contestId?: number
-  orderIndex?: number
-  languages?: string[]
   sampleInput?: string
   sampleOutput?: string
+  hint?: string
+  type: ProblemType
+  difficulty: ProblemDifficulty
+  timeLimit: number
+  memoryLimit: number
+  score: number
   testCases?: TestCase[]
-  tags?: string[]
 }
 
 export interface UpdateProblemDto {
@@ -67,16 +49,13 @@ export interface UpdateProblemDto {
   description?: string
   inputDescription?: string
   outputDescription?: string
-  hint?: string
-  difficulty?: ProblemDifficulty
-  type?: ProblemType
-  timeLimit?: number
-  memoryLimit?: number
-  points?: number
-  orderIndex?: number
-  languages?: string[]
   sampleInput?: string
   sampleOutput?: string
+  hint?: string
+  type?: ProblemType
+  difficulty?: ProblemDifficulty
+  timeLimit?: number
+  memoryLimit?: number
+  score?: number
   testCases?: TestCase[]
-  tags?: string[]
 }

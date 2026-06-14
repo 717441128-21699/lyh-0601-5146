@@ -1,19 +1,27 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { AntiCheatRecord, AntiCheatSeverity } from './entities/anti-cheat-record.entity';
+import { Repository, In } from 'typeorm';
+import { AntiCheatRecord, AntiCheatSeverity, AntiCheatReviewStatus } from './entities/anti-cheat-record.entity';
 import { Submission } from '../submissions/entities/submission.entity';
 import { PaginationDto } from '../common/dto/pagination.dto';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../notifications/entities/notification.entity';
+import { UserRole } from '../users/entities/user.entity';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class AntiCheatService {
   private readonly logger = new Logger(AntiCheatService.name);
+  private readonly SIMILARITY_THRESHOLD = 85;
 
   constructor(
     @InjectRepository(AntiCheatRecord)
     private antiCheatRepository: Repository<AntiCheatRecord>,
     @InjectRepository(Submission)
     private submissionsRepository: Repository<Submission>,
+    @InjectRepository(User)
+    private usersRepository: Repository<User>,
+    private notificationsService: NotificationsService,
   ) {}
 
   private computeJaccardSimilarity(tokens1: Set<string>, tokens2: Set<string>): number {
@@ -38,15 +46,14 @@ export class AntiCheatService {
     return new Set(tokens);
   }
 
-  async checkSimilarity(
-    submissionId: number,
-    problemId: number,
-    codeHash: string,
-    code: string,
-  ): Promise<void> {
+  async detectSimilarity(submissionId: number): Promise<void> {
     try {
       const currentSubmission = await this.submissionsRepository.findOne({ where: { id: submissionId } });
       if (!currentSubmission) return;
+
+      const problemId = currentSubmission.problemId;
+      const codeHash = currentSubmission.codeHash;
+      const code = currentSubmission.code;
 
       const hashMatches = await this.submissionsRepository.find({
         where: { problemId, codeHash },
@@ -54,6 +61,15 @@ export class AntiCheatService {
 
       for (const match of hashMatches) {
         if (match.id === submissionId || match.userId === currentSubmission.userId) continue;
+
+        const existingRecord = await this.antiCheatRepository.findOne({
+          where: {
+            submissionId,
+            comparedSubmissionId: match.id,
+            problemId,
+          },
+        });
+        if (existingRecord) continue;
 
         const record = this.antiCheatRepository.create({
           submissionId,
@@ -90,15 +106,22 @@ export class AntiCheatService {
         const otherTokens = this.tokenize(other.code);
         const similarity = this.computeJaccardSimilarity(currentTokens, otherTokens);
 
-        if (similarity >= 70) {
+        if (similarity >= this.SIMILARITY_THRESHOLD) {
+          const existingRecord = await this.antiCheatRepository.findOne({
+            where: {
+              submissionId,
+              comparedSubmissionId: other.id,
+              problemId,
+            },
+          });
+          if (existingRecord) continue;
+
           const severity =
             similarity >= 95
               ? AntiCheatSeverity.CRITICAL
-              : similarity >= 85
+              : similarity >= 90
               ? AntiCheatSeverity.HIGH
-              : similarity >= 75
-              ? AntiCheatSeverity.MEDIUM
-              : AntiCheatSeverity.LOW;
+              : AntiCheatSeverity.MEDIUM;
 
           const record = this.antiCheatRepository.create({
             submissionId,
@@ -124,8 +147,31 @@ export class AntiCheatService {
           );
         }
       }
+
+      await this.notifyAdminsOfSuspiciousRecords(problemId);
     } catch (error) {
       this.logger.error(`反作弊检测失败: ${error.message}`, error.stack);
+    }
+  }
+
+  private async notifyAdminsOfSuspiciousRecords(problemId: number): Promise<void> {
+    try {
+      const admins = await this.usersRepository.find({
+        where: { role: In([UserRole.ADMIN, UserRole.JUDGE]) as any },
+      });
+
+      for (const admin of admins) {
+        await this.notificationsService.create({
+          userId: admin.id,
+          type: NotificationType.CHEATING,
+          title: '反作弊警报',
+          content: `检测到题目ID ${problemId} 存在可疑的相似代码提交，请前往反作弊记录页面查看详情。`,
+          relatedId: problemId,
+          link: `/anti-cheat/records?problemId=${problemId}`,
+        });
+      }
+    } catch (error) {
+      this.logger.error(`发送管理员通知失败: ${error.message}`);
     }
   }
 
@@ -134,6 +180,7 @@ export class AntiCheatService {
     userId?: number;
     severity?: AntiCheatSeverity;
     isHandled?: boolean;
+    status?: AntiCheatReviewStatus;
   }) {
     const { page, pageSize, sortBy, sortOrder } = paginationDto;
     const skip = (page - 1) * pageSize;
@@ -152,6 +199,9 @@ export class AntiCheatService {
     if (filters?.isHandled !== undefined) {
       queryBuilder.andWhere('record.isHandled = :isHandled', { isHandled: filters.isHandled });
     }
+    if (filters?.status) {
+      queryBuilder.andWhere('record.status = :status', { status: filters.status });
+    }
 
     queryBuilder.skip(skip).take(pageSize);
     queryBuilder.orderBy(sortBy ? `record.${sortBy}` : 'record.createdAt', sortOrder || 'DESC');
@@ -169,10 +219,30 @@ export class AntiCheatService {
     return record;
   }
 
+  async reviewRecord(
+    id: number,
+    status: AntiCheatReviewStatus,
+    reviewNote: string,
+    reviewedBy: number,
+  ): Promise<AntiCheatRecord> {
+    const record = await this.findOne(id);
+
+    if (!Object.values(AntiCheatReviewStatus).includes(status)) {
+      throw new BadRequestException('无效的复核状态');
+    }
+
+    record.status = status;
+    record.reviewNote = reviewNote;
+    record.reviewedBy = reviewedBy;
+    record.isHandled = true;
+
+    return this.antiCheatRepository.save(record);
+  }
+
   async handleRecord(id: number, note: string): Promise<AntiCheatRecord> {
     const record = await this.findOne(id);
     record.isHandled = true;
-    record.handlingNote = note;
+    record.reviewNote = note;
     return this.antiCheatRepository.save(record);
   }
 

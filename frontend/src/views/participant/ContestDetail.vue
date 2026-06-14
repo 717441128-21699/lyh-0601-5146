@@ -17,6 +17,7 @@
               <div class="tags">
                 <el-tag :type="statusType" size="large">{{ statusText }}</el-tag>
                 <el-tag type="info" size="large">{{ typeText }}</el-tag>
+                <el-tag size="large">{{ difficultyText }}</el-tag>
               </div>
             </div>
             <p class="contest-desc">{{ contest.description }}</p>
@@ -31,11 +32,11 @@
               </div>
               <div class="meta-item">
                 <el-icon><User /></el-icon>
-                <span>参赛人数: {{ contest.participantCount || 0 }}人</span>
+                <span>主办方: {{ contest.organizer }}</span>
               </div>
               <div class="meta-item">
                 <el-icon><Document /></el-icon>
-                <span>题目数量: {{ contest.problemCount || 0 }}道</span>
+                <span>最大人数: {{ contest.maxParticipants || '不限' }}</span>
               </div>
             </div>
             <div class="action-area">
@@ -53,9 +54,17 @@
                   {{ registrationClosed ? '报名已结束' : '请等待报名开始' }}
                 </el-button>
               </template>
-              <el-tag v-else type="success" size="large">
-                <el-icon><CircleCheck /></el-icon>已报名
-              </el-tag>
+              <div v-else class="registered-info">
+                <el-tag type="success" size="large">
+                  <el-icon><CircleCheck /></el-icon>已报名
+                </el-tag>
+                <span v-if="contest.registrationInfo?.trackName" class="track-name">
+                  赛道: {{ contest.registrationInfo.trackName }}
+                </span>
+                <span v-if="contest.registrationInfo?.credentialCode" class="credential-code">
+                  参赛凭证: {{ contest.registrationInfo.credentialCode }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -78,7 +87,7 @@
                   <el-tag :type="getDifficultyType(row.difficulty)">{{ getDifficultyText(row.difficulty) }}</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="分值" prop="points" width="80" align="center" />
+              <el-table-column label="分值" prop="score" width="80" align="center" />
               <el-table-column label="通过/提交" width="120" align="center">
                 <template #default="{ row }">
                   <span style="color: #67C23A">{{ row.acceptedCount || 0 }}</span>
@@ -115,9 +124,9 @@
                 <template #default="{ row }">
                   <div class="user-cell">
                     <el-avatar :size="32">
-                      {{ row.user?.nickname?.charAt(0) || row.user?.username?.charAt(0) }}
+                      {{ row.user?.realName?.charAt(0) || row.user?.username?.charAt(0) }}
                     </el-avatar>
-                    <span class="username">{{ row.user?.nickname || row.user?.username }}</span>
+                    <span class="username">{{ row.user?.realName || row.user?.username }}</span>
                   </div>
                 </template>
               </el-table-column>
@@ -137,10 +146,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getContestDetail, getContestProblems, registerContest } from '@/api/contest'
+import { getContestDetail, getContestProblems, registerContest, checkRegistration } from '@/api/contest'
 import { getContestRanking } from '@/api/ranking'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { Contest } from '@/types/contest'
+import type { Contest, Registration } from '@/types/contest'
 import type { Problem } from '@/types/problem'
 import type { RankingItem } from '@/types/ranking'
 import dayjs from 'dayjs'
@@ -162,13 +171,13 @@ const contestId = computed(() => Number(route.params.id))
 
 const statusText = computed(() => {
   if (!contest.value) return ''
-  const map: Record<string, string> = { upcoming: '即将开始', ongoing: '进行中', ended: '已结束' }
+  const map: Record<string, string> = { draft: '草稿', registering: '报名中', ongoing: '进行中', ended: '已结束', cancelled: '已取消' }
   return map[contest.value.status] || '未知'
 })
 
 const statusType = computed(() => {
   if (!contest.value) return 'info'
-  const map: Record<string, string> = { upcoming: 'warning', ongoing: 'success', ended: 'info' }
+  const map: Record<string, string> = { draft: 'info', registering: 'warning', ongoing: 'success', ended: 'info', cancelled: 'danger' }
   return map[contest.value.status] || 'info'
 })
 
@@ -177,16 +186,20 @@ const typeText = computed(() => {
   return contest.value.type === 'individual' ? '个人赛' : '团队赛'
 })
 
+const difficultyText = computed(() => {
+  if (!contest.value) return ''
+  const map: Record<string, string> = { easy: '简单', medium: '中等', hard: '困难', expert: '专家' }
+  return map[contest.value.difficulty] || '未知'
+})
+
 const canRegister = computed(() => {
   if (!contest.value) return false
-  const now = dayjs()
-  return now.isAfter(dayjs(contest.value.registrationStartTime)) &&
-    now.isBefore(dayjs(contest.value.registrationEndTime))
+  return contest.value.status === 'registering'
 })
 
 const registrationClosed = computed(() => {
   if (!contest.value) return true
-  return dayjs().isAfter(dayjs(contest.value.registrationEndTime))
+  return contest.value.status === 'ended' || contest.value.status === 'cancelled'
 })
 
 function formatTime(time: string) {
@@ -201,12 +214,12 @@ function formatPenalty(seconds: number) {
 }
 
 function getDifficultyType(difficulty: string) {
-  const map: Record<string, string> = { easy: 'success', medium: 'warning', hard: 'danger' }
+  const map: Record<string, string> = { easy: 'success', medium: 'warning', hard: 'danger', expert: 'danger' }
   return map[difficulty] || 'info'
 }
 
 function getDifficultyText(difficulty: string) {
-  const map: Record<string, string> = { easy: '简单', medium: '中等', hard: '困难' }
+  const map: Record<string, string> = { easy: '简单', medium: '中等', hard: '困难', expert: '专家' }
   return map[difficulty] || '未知'
 }
 
@@ -214,6 +227,14 @@ async function loadContest() {
   loading.value = true
   try {
     contest.value = await getContestDetail(contestId.value)
+    try {
+      const regResult = await checkRegistration(contestId.value)
+      if (contest.value) {
+        contest.value.isRegistered = regResult.isRegistered
+        contest.value.registrationInfo = regResult.registration || undefined
+      }
+    } catch (e) {
+    }
   } finally {
     loading.value = false
   }
@@ -245,21 +266,7 @@ async function loadRankings() {
 async function handleRegister() {
   if (!contest.value) return
   try {
-    if (contest.value.groups.length > 0) {
-      const groupOptions = contest.value.groups.map(g => `<option value="${g.id}">${g.name}</option>`).join('')
-      const { value } = await ElMessageBox({
-        title: '选择参赛组别',
-        message: `请选择您要参加的组别：<select id="group-select" style="width:100%;padding:8px;margin-top:12px;border:1px solid #dcdfe6;border-radius:4px;">${groupOptions}</select>`,
-        dangerouslyUseHTMLString: true,
-        confirmButtonText: '确认报名',
-        cancelButtonText: '取消'
-      })
-      const select = document.getElementById('group-select') as HTMLSelectElement
-      const groupId = select ? Number(select.value) : undefined
-      await doRegister(groupId)
-    } else {
-      await doRegister()
-    }
+    await doRegister()
   } catch (error: any) {
     if (error !== 'cancel') {
       ElMessage.error(error?.message || '报名失败')
@@ -270,10 +277,20 @@ async function handleRegister() {
 async function doRegister(groupId?: number) {
   registerLoading.value = true
   try {
-    await registerContest(contestId.value, groupId)
-    ElMessage.success('报名成功！')
+    const registration = await registerContest(contestId.value, groupId) as Registration
+    await ElMessageBox.alert(
+      `<p><strong>分配赛道:</strong> ${registration.group?.name || '-'}</p>
+       <p><strong>参赛凭证:</strong> ${registration.credentialCode || '-'}</p>`,
+      '报名成功！',
+      {
+        dangerouslyUseHTMLString: true,
+        confirmButtonText: '确定',
+        type: 'success'
+      }
+    )
     if (contest.value) {
       contest.value.isRegistered = true
+      contest.value.registrationInfo = registration
     }
   } finally {
     registerLoading.value = false
@@ -358,6 +375,18 @@ onMounted(() => {
         align-items: center;
         gap: 8px;
         font-size: 13px;
+        color: #606266;
+      }
+    }
+
+    .registered-info {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+
+      .track-name,
+      .credential-code {
+        font-size: 14px;
         color: #606266;
       }
     }

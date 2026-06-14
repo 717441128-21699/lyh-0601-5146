@@ -23,6 +23,22 @@ export class ReportsController {
     return this.reportsService.findAll(paginationDto, { period });
   }
 
+  @Get('/monthly')
+  @ApiOperation({ summary: '获取月度报表（管理员）' })
+  @ApiResponse({ status: 200, description: '获取成功' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  getMonthlyReport(
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+  ) {
+    return this.reportsService.getMonthlyReport(
+      year ? parseInt(year, 10) : undefined,
+      month ? parseInt(month, 10) : undefined,
+    );
+  }
+
   @Get('summary')
   @ApiOperation({ summary: '获取运营概要数据（管理员）' })
   @ApiResponse({ status: 200, description: '获取成功' })
